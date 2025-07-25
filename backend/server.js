@@ -1,23 +1,17 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-require('dotenv').config();
-
+const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+// Serve static files from the backend directory
+app.use(express.static(path.join(__dirname)));
 
-app.post('/api/contact', (req, res) => {
-  const { name, email, message } = req.body;
-  const apiKey = process.env.EMAIL_API_KEY;
-
-  // Log data and simulate saving or sending
-  console.log('New message:', { name, email, message, apiKey });
-
-  res.json({ status: 'success', msg: 'Message received! Thank you.' });
+// Serve index.html on the root route
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Start the server
+const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 App running at http://localhost:${PORT}`);
 });
