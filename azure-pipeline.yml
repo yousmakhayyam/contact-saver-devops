@@ -4,8 +4,8 @@ trigger:
       - main
 
 variables:
-  azureServiceConnection: 'Azure-Yousma-Connection'
-  dockerRegistryServiceConnection: 'acr-connection'
+  azureServiceConnection: 'Azure-Yousma-Connection'        # Your service connection name in Azure DevOps
+  dockerRegistryServiceConnection: 'acr-connection'         # ACR service connection
   acrName: 'contactsaveracr123'
   containerImage: 'contact-saver'
   dockerfilePath: 'backend/Dockerfile'
@@ -36,7 +36,7 @@ stages:
             tags: |
               latest
 
-# -------------------- STAGE 2: Deploy Infrastructure & App --------------------
+# -------------------- STAGE 2: Deploy Terraform Infrastructure --------------------
 - stage: Deploy
   displayName: 'Terraform Deploy Infra + Web App'
   dependsOn: Build
@@ -52,22 +52,19 @@ stages:
           inputs:
             terraformVersion: '1.7.5'
 
-        # ✅ FIX: Use AzureCLI to avoid backend errors
-        - task: AzureCLI@2
+        # ✅ Use TerraformTaskV1 with backendServiceArm (correct SP method)
+        - task: TerraformTaskV1@0
           displayName: 'Terraform Init'
           inputs:
-            azureSubscription: $(azureServiceConnection)
-            scriptType: bash
-            scriptLocation: inlineScript
-            workingDirectory: terraform
-            inlineScript: |
-              terraform init \
-                -backend-config="resource_group_name=$(tfBackendRg)" \
-                -backend-config="storage_account_name=$(tfStorage)" \
-                -backend-config="container_name=$(tfContainer)" \
-                -backend-config="key=$(tfKey)"
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: 'terraform'
+            backendServiceArm: $(azureServiceConnection)
+            backendAzureRmResourceGroupName: $(tfBackendRg)
+            backendAzureRmStorageAccountName: $(tfStorage)
+            backendAzureRmContainerName: $(tfContainer)
+            backendAzureRmKey: $(tfKey)
 
-        # ✅ Terraform Apply
         - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:
@@ -76,7 +73,7 @@ stages:
             workingDirectory: 'terraform'
             environmentServiceNameAzureRM: $(azureServiceConnection)
             vars: |
-              resource_group_name=yousma-rg
+              resource_group_name=$(tfBackendRg)
               location=East US
               acr_name=$(acrName)
               app_service_plan_name=contact-asp
