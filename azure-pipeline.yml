@@ -10,7 +10,7 @@ variables:
   containerImage: 'contact-saver'
   dockerfilePath: 'backend/Dockerfile'
   tfBackendRg: 'yousma-rg'                  # ✅ match main.tf
-  tfStorage: 'yousmastorage'                # ✅ match main.tf
+  tfStorage: 'yousmastorage'                # ✅ match  main.tf
   tfContainer: 'tfstate'                    # ✅ match main.tf
   tfKey: 'terraform.tfstate'
 
