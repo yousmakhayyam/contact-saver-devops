@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ContactSaver</title>
+</head>
+<body>
+  <h2>Contact Us</h2>
+  <form id="contactForm">
+    <input type="text" name="name" placeholder="Your Name" required /><br />
+    <input type="email" name="email" placeholder="Your Email" required /><br />
+    <textarea name="message" placeholder="Your Message" required></textarea><br />
+    <button type="submit">Send</button>
+  </form>
+  <p id="response"></p>
+
+  <script>
+    document.getElementById('contactForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+      document.getElementById('response').textContent = result.msg;
+    });
+  </script>
+</body>
+</html>
