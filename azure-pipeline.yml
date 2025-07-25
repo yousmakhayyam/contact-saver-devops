@@ -9,14 +9,14 @@ variables:
   acrName: 'contactsaveracr123'
   containerImage: 'contact-saver'
   dockerfilePath: 'backend/Dockerfile'
-  tfBackendRg: 'yousma-rg'                  # ✅ match main.tf
-  tfStorage: 'yousmastorage'                # ✅ match  main.tf
-  tfContainer: 'tfstate'                    # ✅ match main.tf
+  tfBackendRg: 'yousma-rg'
+  tfStorage: 'yousmastorage'
+  tfContainer: 'tfstate'
   tfKey: 'terraform.tfstate'
 
 stages:
 
-# ----------------------------------------
+# -------------------- STAGE 1: Build & Push Docker Image --------------------
 - stage: Build
   displayName: 'Build and Push Docker Image'
   jobs:
@@ -36,9 +36,9 @@ stages:
             tags: |
               latest
 
-# ----------------------------------------
+# -------------------- STAGE 2: Deploy Infrastructure & App --------------------
 - stage: Deploy
-  displayName: 'Terraform Deploy Infra'
+  displayName: 'Terraform Deploy Infra + Web App'
   dependsOn: Build
   jobs:
     - job: Terraform
@@ -48,21 +48,26 @@ stages:
         - checkout: self
 
         - task: TerraformInstaller@0
+          displayName: 'Install Terraform'
           inputs:
             terraformVersion: '1.7.5'
 
-        - task: TerraformTaskV1@0
+        # ✅ FIX: Use AzureCLI to avoid backend errors
+        - task: AzureCLI@2
           displayName: 'Terraform Init'
           inputs:
-            provider: 'azurerm'
-            command: 'init'
-            workingDirectory: 'terraform'
-            backendServiceArm: $(azureServiceConnection)         # ✅ Only this needed
-            backendAzureRmResourceGroupName: $(tfBackendRg)
-            backendAzureRmStorageAccountName: $(tfStorage)
-            backendAzureRmContainerName: $(tfContainer)
-            backendAzureRmKey: $(tfKey)
+            azureSubscription: $(azureServiceConnection)
+            scriptType: bash
+            scriptLocation: inlineScript
+            workingDirectory: terraform
+            inlineScript: |
+              terraform init \
+                -backend-config="resource_group_name=$(tfBackendRg)" \
+                -backend-config="storage_account_name=$(tfStorage)" \
+                -backend-config="container_name=$(tfContainer)" \
+                -backend-config="key=$(tfKey)"
 
+        # ✅ Terraform Apply
         - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:
