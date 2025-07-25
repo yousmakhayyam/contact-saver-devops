@@ -1,9 +1,7 @@
 terraform {
   backend "azurerm" {
-    resource_group_name  = "yousma-rg"
-    storage_account_name = "yousmastorage"
-    container_name       = "tfstate"
-    key                  = "terraform.tfstate"
+    # Backend configuration will be provided via Azure DevOps task
+    # or via -backend-config parameters during terraform init
   }
 }
 

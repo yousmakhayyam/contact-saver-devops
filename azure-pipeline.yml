@@ -52,7 +52,7 @@ stages:
           inputs:
             terraformVersion: '1.7.5'
 
-        # ✅ Use TerraformTaskV1 with backendServiceArm (correct SP method)
+        # Terraform Init with proper backend configuration
         - task: TerraformTaskV1@0
           displayName: 'Terraform Init'
           inputs:
@@ -65,6 +65,28 @@ stages:
             backendAzureRmContainerName: $(tfContainer)
             backendAzureRmKey: $(tfKey)
 
+        # Get ACR credentials
+        - task: AzureCLI@2
+          displayName: 'Get ACR Credentials'
+          inputs:
+            azureSubscription: $(azureServiceConnection)
+            scriptType: 'bash'
+            scriptLocation: 'inlineScript'
+            inlineScript: |
+              ACR_USERNAME=$(az acr credential show --name $(acrName) --query "username" --output tsv)
+              ACR_PASSWORD=$(az acr credential show --name $(acrName) --query "passwords[0].value" --output tsv)
+              echo "##vso[task.setvariable variable=ACR_USERNAME]$ACR_USERNAME"
+              echo "##vso[task.setvariable variable=ACR_PASSWORD]$ACR_PASSWORD"
+
+        - task: TerraformTaskV1@0
+          displayName: 'Terraform Plan'
+          inputs:
+            provider: 'azurerm'
+            command: 'plan'
+            workingDirectory: 'terraform'
+            environmentServiceNameAzureRM: $(azureServiceConnection)
+            commandOptions: '-var="resource_group_name=$(tfBackendRg)" -var="location=East US" -var="acr_name=$(acrName)" -var="app_service_plan_name=contact-asp" -var="web_app_name=contact-webapp-123" -var="key_vault_name=contactkv123" -var="email_api_key=sample-api-key" -var="acr_admin_username=$(ACR_USERNAME)" -var="acr_admin_password=$(ACR_PASSWORD)" -var="container_image=$(containerImage)"'
+
         - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:
@@ -72,15 +94,4 @@ stages:
             command: 'apply'
             workingDirectory: 'terraform'
             environmentServiceNameAzureRM: $(azureServiceConnection)
-            vars: |
-              resource_group_name=$(tfBackendRg)
-              location=East US
-              acr_name=$(acrName)
-              app_service_plan_name=contact-asp
-              web_app_name=contact-webapp
-              key_vault_name=contactkv
-              email_api_key=sample-api-key
-              acr_admin_username=$(ACR_USERNAME)
-              acr_admin_password=$(ACR_PASSWORD)
-              container_image=$(containerImage)
-            args: '-auto-approve'
+            commandOptions: '-var="resource_group_name=$(tfBackendRg)" -var="location=East US" -var="acr_name=$(acrName)" -var="app_service_plan_name=contact-asp" -var="web_app_name=contact-webapp-123" -var="key_vault_name=contactkv123" -var="email_api_key=sample-api-key" -var="acr_admin_username=$(ACR_USERNAME)" -var="acr_admin_password=$(ACR_PASSWORD)" -var="container_image=$(containerImage)" -auto-approve'
