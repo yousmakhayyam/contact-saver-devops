@@ -9,7 +9,7 @@ variables:
   acrName: 'contactsaveracr123'
   containerImage: 'contact-saver'
   dockerfilePath: 'backend/Dockerfile'
-  tfBackendRg: 'yousma-rg'                  # ✅ match main.tf
+  tfBackendRg: 'yousma-rg'                  # ✅ match the main.tf
   tfStorage: 'yousmastorage'                # ✅ match main.tf
   tfContainer: 'tfstate'                    # ✅ match main.tf
   tfKey: 'terraform.tfstate'
