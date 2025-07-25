@@ -1,10 +1,5 @@
 terraform {
-  backend "azurerm" {
-    resource_group_name  = "yousma-rg"
-    storage_account_name = "yousmastorage"
-    container_name       = "tfstate"
-    key                  = "terraform.tfstate"
-  }
+  backend "azurerm" {}
 }
 
 provider "azurerm" {
@@ -13,13 +8,24 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
+variable "resource_group_name" {}
+variable "location" {}
+variable "acr_name" {}
+variable "app_service_plan_name" {}
+variable "web_app_name" {}
+variable "key_vault_name" {}
+variable "email_api_key" {}
+variable "acr_admin_username" {}
+variable "acr_admin_password" {}
+variable "container_image" {}
+
 # 1. Resource Group
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
 }
 
-# 2. ACR (with admin enabled for CI/CD login)
+# 2. ACR
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = azurerm_resource_group.main.name
@@ -78,11 +84,7 @@ resource "azurerm_linux_web_app" "app" {
 
   app_settings = {
     WEBSITES_PORT = "3000"
-
-    # 👇 Secret fetched from Key Vault
     EMAIL_API_KEY = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
-
-    # 👇 Docker Registry Login Info
     DOCKER_REGISTRY_SERVER_URL      = "https://${azurerm_container_registry.acr.login_server}"
     DOCKER_REGISTRY_SERVER_USERNAME = var.acr_admin_username
     DOCKER_REGISTRY_SERVER_PASSWORD = var.acr_admin_password
@@ -93,7 +95,7 @@ resource "azurerm_linux_web_app" "app" {
   ]
 }
 
-# 7. Key Vault Access Policy for Web App to read secret
+# 7. Key Vault Access Policy
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
