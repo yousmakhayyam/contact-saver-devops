@@ -4,8 +4,8 @@ trigger:
       - main
 
 variables:
-  azureServiceConnection: 'Azure-Yousma-Connection'        # Your service connection name in Azure DevOps
-  dockerRegistryServiceConnection: 'acr-connection'         # ACR service connection
+  azureServiceConnection: 'Azure-Yousma-Connection'
+  dockerRegistryServiceConnection: 'acr-connection'
   acrName: 'contactsaveracr123'
   containerImage: 'contact-saver'
   dockerfilePath: 'backend/Dockerfile'
@@ -13,6 +13,8 @@ variables:
   tfStorage: 'yousmastorage'
   tfContainer: 'tfstate'
   tfKey: 'terraform.tfstate'
+  webAppName: 'contact-webapp-123'
+  keyVaultName: 'contactkv123'
 
 stages:
 
@@ -36,9 +38,9 @@ stages:
             tags: |
               latest
 
-# -------------------- STAGE 2: Deploy Terraform Infrastructure --------------------
+# -------------------- STAGE 2: Deploy Infrastructure --------------------
 - stage: Deploy
-  displayName: 'Terraform Deploy Infra + Web App'
+  displayName: 'Deploy Terraform Infrastructure and App'
   dependsOn: Build
   jobs:
     - job: Terraform
@@ -52,35 +54,50 @@ stages:
           inputs:
             terraformVersion: '1.7.5'
 
-        # ✅ Use TerraformTaskV1 with backendServiceArm (correct SP method)
+        # ✅ Terraform Init
         - task: TerraformTaskV1@0
           displayName: 'Terraform Init'
           inputs:
             provider: 'azurerm'
             command: 'init'
-            workingDirectory: 'terraform'
             backendServiceArm: $(azureServiceConnection)
             backendAzureRmResourceGroupName: $(tfBackendRg)
             backendAzureRmStorageAccountName: $(tfStorage)
             backendAzureRmContainerName: $(tfContainer)
             backendAzureRmKey: $(tfKey)
+            workingDirectory: 'terraform'
 
+        # ✅ Get ACR Credentials
+        - task: AzureCLI@2
+          displayName: 'Get ACR Admin Credentials'
+          inputs:
+            azureSubscription: $(azureServiceConnection)
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              ACR_USERNAME=$(az acr credential show --name $(acrName) --query "username" -o tsv)
+              ACR_PASSWORD=$(az acr credential show --name $(acrName) --query "passwords[0].value" -o tsv)
+
+              echo "##vso[task.setvariable variable=ACR_USERNAME]$ACR_USERNAME"
+              echo "##vso[task.setvariable variable=ACR_PASSWORD]$ACR_PASSWORD"
+
+        # ✅ Terraform Apply
         - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:
             provider: 'azurerm'
             command: 'apply'
-            workingDirectory: 'terraform'
             environmentServiceNameAzureRM: $(azureServiceConnection)
-            vars: |
-              resource_group_name=$(tfBackendRg)
-              location=East US
-              acr_name=$(acrName)
-              app_service_plan_name=contact-asp
-              web_app_name=contact-webapp
-              key_vault_name=contactkv
-              email_api_key=sample-api-key
-              acr_admin_username=$(ACR_USERNAME)
-              acr_admin_password=$(ACR_PASSWORD)
-              container_image=$(containerImage)
-            args: '-auto-approve'
+            workingDirectory: 'terraform'
+            commandOptions: |
+              -var="resource_group_name=$(tfBackendRg)" \
+              -var="location=East US" \
+              -var="acr_name=$(acrName)" \
+              -var="app_service_plan_name=contact-asp" \
+              -var="web_app_name=$(webAppName)" \
+              -var="key_vault_name=$(keyVaultName)" \
+              -var="email_api_key=sample-api-key" \
+              -var="acr_admin_username=$(ACR_USERNAME)" \
+              -var="acr_admin_password=$(ACR_PASSWORD)" \
+              -var="container_image=$(containerImage)" \
+              -auto-approve
