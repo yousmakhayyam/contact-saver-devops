@@ -20,52 +20,46 @@ variable "acr_admin_username" {}
 variable "acr_admin_password" {}
 variable "container_image" {}
 
-# RESOURCE GROUP
-resource "azurerm_resource_group" "main" {
-  name     = var.resource_group_name
-  location = var.location
-}
-
-# ACR
+# Azure Container Registry (ACR)
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
-  resource_group_name = azurerm_resource_group.main.name
+  resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = "Basic"
   admin_enabled       = true
 }
 
-# ✅ Updated App Service Plan
+# Updated App Service Plan
 resource "azurerm_service_plan" "asp" {
   name                = var.app_service_plan_name
   location            = var.location
-  resource_group_name = azurerm_resource_group.main.name
+  resource_group_name = var.resource_group_name
   os_type             = "Linux"
   sku_name            = "B1"
 }
 
-# ✅ Fixed Key Vault (removed soft_delete_enabled)
+# Key Vault (fixed deprecated field)
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
-  resource_group_name         = azurerm_resource_group.main.name
+  resource_group_name         = var.resource_group_name
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   sku_name                    = "standard"
   purge_protection_enabled    = false
 }
 
-# Key Vault Secret
+# Store API Key Secret in Key Vault
 resource "azurerm_key_vault_secret" "api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
 }
 
-# Web App for Containers
+# Linux Web App for Containers
 resource "azurerm_linux_web_app" "app" {
   name                = var.web_app_name
   location            = var.location
-  resource_group_name = azurerm_resource_group.main.name
+  resource_group_name = var.resource_group_name
   service_plan_id     = azurerm_service_plan.asp.id
 
   identity {
@@ -90,7 +84,7 @@ resource "azurerm_linux_web_app" "app" {
   ]
 }
 
-# ✅ FIXED: Use identity[0] instead of identity
+# Key Vault Access Policy (fix: identity[0] and capital "Get")
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
