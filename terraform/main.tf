@@ -35,7 +35,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# ✅ UPDATED App Service Plan
+# ✅ Updated App Service Plan
 resource "azurerm_service_plan" "asp" {
   name                = var.app_service_plan_name
   location            = var.location
@@ -44,7 +44,7 @@ resource "azurerm_service_plan" "asp" {
   sku_name            = "B1"
 }
 
-# ✅ FIXED Key Vault (removed soft_delete_enabled)
+# ✅ Fixed Key Vault (removed soft_delete_enabled)
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -90,11 +90,11 @@ resource "azurerm_linux_web_app" "app" {
   ]
 }
 
-# Key Vault Access Policy for Web App
+# ✅ FIXED: Use identity[0] instead of identity
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_linux_web_app.app.identity.principal_id
+  object_id    = azurerm_linux_web_app.app.identity[0].principal_id
 
   secret_permissions = ["get"]
 }
