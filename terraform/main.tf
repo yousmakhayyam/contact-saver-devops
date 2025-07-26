@@ -8,11 +8,10 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# VARIABLES
+# 🔶 Variables
 variable "resource_group_name" {}
 variable "location" {}
 variable "acr_name" {}
-variable "app_service_plan_name" {}
 variable "web_app_name" {}
 variable "key_vault_name" {}
 variable "email_api_key" {}
@@ -29,16 +28,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# 🔷 App Service Plan
-resource "azurerm_service_plan" "asp" {
-  name                = var.app_service_plan_name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  os_type             = "Linux"
-  sku_name            = "F1"
-}
-
-# 🔷 Key Vault
+# 🔐 Key Vault
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -48,7 +38,7 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
 }
 
-# 🔐 Access Policy for Terraform (so it can create secrets)
+# 🔐 Access Policy for Terraform SPN
 resource "azurerm_key_vault_access_policy" "terraform_spn_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -57,7 +47,7 @@ resource "azurerm_key_vault_access_policy" "terraform_spn_policy" {
   secret_permissions = ["Get", "Set", "List"]
 }
 
-# 🔐 Store API Key Secret
+# 🔐 Store API Key Secret in Key Vault
 resource "azurerm_key_vault_secret" "api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
@@ -66,38 +56,69 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on = [azurerm_key_vault_access_policy.terraform_spn_policy]
 }
 
-# 🌐 Linux Web App
-resource "azurerm_linux_web_app" "app" {
-  name                = var.web_app_name
+# 🌐 Container App Environment
+resource "azurerm_container_app_environment" "env" {
+  name                = "${var.web_app_name}-env"
   location            = var.location
   resource_group_name = var.resource_group_name
-  service_plan_id     = azurerm_service_plan.asp.id
+}
+
+# 🌐 Azure Container App
+resource "azurerm_container_app" "app" {
+  name                         = var.web_app_name
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  resource_group_name          = var.resource_group_name
+  location                     = var.location
+
+  revision_mode = "Single"
 
   identity {
     type = "SystemAssigned"
   }
 
-  site_config {
-    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-    always_on        = true
+  registry {
+    server               = azurerm_container_registry.acr.login_server
+    username             = var.acr_admin_username
+    password_secret_name = "acr-password"
   }
 
-  app_settings = {
-    WEBSITES_PORT                    = "3000"
-    EMAIL_API_KEY                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
-    DOCKER_REGISTRY_SERVER_URL      = "https://${azurerm_container_registry.acr.login_server}"
-    DOCKER_REGISTRY_SERVER_USERNAME = var.acr_admin_username
-    DOCKER_REGISTRY_SERVER_PASSWORD = var.acr_admin_password
+  secret {
+    name  = "acr-password"
+    value = var.acr_admin_password
+  }
+
+  secret {
+    name  = "email-api-key"
+    value = azurerm_key_vault_secret.api_key.value
+  }
+
+  template {
+    container {
+      name   = "contact-app"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+      cpu    = 0.5
+      memory = "1.0Gi"
+
+      env {
+        name        = "EMAIL_API_KEY"
+        secret_name = "email-api-key"
+      }
+
+      env {
+        name  = "WEBSITES_PORT"
+        value = "3000"
+      }
+    }
   }
 
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# 🔐 Access Policy for Web App Identity (to read secret at runtime)
+# 🔐 Access Policy for Container App Identity
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_linux_web_app.app.identity[0].principal_id
+  object_id    = azurerm_container_app.app.identity[0].principal_id
 
   secret_permissions = ["Get"]
 }

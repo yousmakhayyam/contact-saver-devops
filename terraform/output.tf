@@ -1,3 +1,5 @@
-output "web_app_url" {
-  value = azurerm_linux_web_app.app.default_hostname
+
+output "container_app_url" {
+  description = "The FQDN of the Azure Container App"
+  value       = azurerm_container_app.app.latest_revision_fqdn
 }
