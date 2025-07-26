@@ -4,7 +4,7 @@ trigger:
       - main
 
 variables:
-  - group: Azurecredentials   # ✅ Correctly nested
+  - group: Azurecredentials
   - name: acrName
     value: 'contactsaveracr123'
   - name: containerImage
@@ -55,7 +55,7 @@ stages:
   dependsOn: Build
   jobs:
     - job: Terraform
-      displayName: 'Run Terraform with Env Auth'
+      displayName: 'Run Terraform'
       pool:
         vmImage: ubuntu-latest
       steps:
@@ -67,22 +67,20 @@ stages:
             terraformVersion: '1.7.5'
 
         - script: |
-            echo "Setting environment variables"
+            echo "Setting environment variables for Service Principal auth..."
             export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
             export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
             export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
             export ARM_TENANT_ID=$(ARM_TENANT_ID)
 
             cd terraform
+
+            echo "Initializing Terraform backend..."
             terraform init \
               -backend-config="resource_group_name=$(tfBackendRg)" \
               -backend-config="storage_account_name=$(tfStorage)" \
               -backend-config="container_name=$(tfContainer)" \
               -backend-config="key=$(tfKey)"
-
-            echo "Fetching ACR credentials..."
-            ACR_USERNAME=$(az acr credential show --name $(acrName) --query "username" -o tsv)
-            ACR_PASSWORD=$(az acr credential show --name $(acrName) --query "passwords[0].value" -o tsv)
 
             echo "Running Terraform apply..."
             terraform apply \
@@ -93,8 +91,8 @@ stages:
               -var="web_app_name=$(webAppName)" \
               -var="key_vault_name=$(keyVaultName)" \
               -var="email_api_key=$(email_api_key)" \
-              -var="acr_admin_username=$ACR_USERNAME" \
-              -var="acr_admin_password=$ACR_PASSWORD" \
+              -var="acr_admin_username=$(acr_admin_username)" \
+              -var="acr_admin_password=$(acr_admin_password)" \
               -var="container_image=$(containerImage)" \
               -auto-approve
-          displayName: 'Run Terraform Init and Apply'
+          displayName: 'Run Terraform Init & Apply'
