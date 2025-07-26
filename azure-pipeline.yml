@@ -1,12 +1,12 @@
 trigger:
   branches:
     include:
-      - main  # main branchs
+      - main  # main branch
 
 variables:
   - group: Azurecredentials
   - name: acrName
-    value: 'contactsaveracr123'
+    value: 'contactsaveracr1234'
   - name: containerImage
     value: 'contact-saver'
   - name: dockerfilePath
