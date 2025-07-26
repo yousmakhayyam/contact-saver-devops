@@ -17,6 +17,7 @@ variables:
   keyVaultName: 'contactkv123'
 
 stages:
+# ------------------------ BUILD IMAGE ------------------------
 - stage: Build
   displayName: 'Build and Push Docker Image'
   jobs:
@@ -36,6 +37,7 @@ stages:
             tags: |
               latest
 
+# ------------------------ DEPLOY INFRA ------------------------
 - stage: Deploy
   displayName: 'Deploy Terraform Infrastructure'
   dependsOn: Build
@@ -46,23 +48,28 @@ stages:
       steps:
         - checkout: self
 
+        # Terraform install
         - task: TerraformInstaller@0
           displayName: 'Install Terraform'
           inputs:
             terraformVersion: '1.7.5'
 
-        - task: TerraformTaskV1@0
+        # Terraform Init via AzureCLI (not TerraformTask)
+        - task: AzureCLI@2
           displayName: 'Terraform Init'
           inputs:
-            provider: 'azurerm'
-            command: 'init'
-            backendServiceArm: $(azureServiceConnection)  # ✅ Correct
-            backendAzureRmResourceGroupName: $(tfBackendRg)
-            backendAzureRmStorageAccountName: $(tfStorage)
-            backendAzureRmContainerName: $(tfContainer)
-            backendAzureRmKey: $(tfKey)
-            workingDirectory: 'terraform'
+            azureSubscription: $(azureServiceConnection)
+            scriptType: bash
+            scriptLocation: inlineScript
+            workingDirectory: terraform
+            inlineScript: |
+              terraform init \
+                -backend-config="resource_group_name=$(tfBackendRg)" \
+                -backend-config="storage_account_name=$(tfStorage)" \
+                -backend-config="container_name=$(tfContainer)" \
+                -backend-config="key=$(tfKey)"
 
+        # Get ACR credentials and save as variables
         - task: AzureCLI@2
           displayName: 'Get ACR Admin Credentials'
           inputs:
@@ -75,12 +82,13 @@ stages:
               echo "##vso[task.setvariable variable=ACR_USERNAME]$ACR_USERNAME"
               echo "##vso[task.setvariable variable=ACR_PASSWORD]$ACR_PASSWORD"
 
+        # Terraform Apply
         - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:
             provider: 'azurerm'
             command: 'apply'
-            backendServiceArm: $(azureServiceConnection)  # ✅ Fixed
+            environmentServiceNameAzureRM: $(azureServiceConnection)
             workingDirectory: 'terraform'
             commandOptions: |
               -var="resource_group_name=$(tfBackendRg)" \
