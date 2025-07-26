@@ -56,7 +56,7 @@ stages:
           inputs:
             provider: 'azurerm'
             command: 'init'
-            backendServiceArm: $(azureServiceConnection)
+            backendServiceArm: $(azureServiceConnection)  # ✅ Correct
             backendAzureRmResourceGroupName: $(tfBackendRg)
             backendAzureRmStorageAccountName: $(tfStorage)
             backendAzureRmContainerName: $(tfContainer)
@@ -80,7 +80,7 @@ stages:
           inputs:
             provider: 'azurerm'
             command: 'apply'
-            environmentServiceNameAzureRM: $(azureServiceConnection)
+            backendServiceArm: $(azureServiceConnection)  # ✅ Fixed
             workingDirectory: 'terraform'
             commandOptions: |
               -var="resource_group_name=$(tfBackendRg)" \
