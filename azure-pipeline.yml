@@ -13,6 +13,12 @@ variables:
   tfKey: 'terraform.tfstate'
   webAppName: 'contact-webapp-123'
   keyVaultName: 'contactkv123'
+  location: 'East US'
+  app_service_plan_name: 'contact-asp'
+  email_api_key: 'sample-api-key'
+
+# Import Secret Variables
+- group: Azurecredentials
 
 stages:
 - stage: Build
@@ -35,51 +41,50 @@ stages:
               latest
 
 - stage: Deploy
-  displayName: 'Terraform Infra Deployment'
+  displayName: 'Deploy Terraform Infrastructure'
   dependsOn: Build
   jobs:
-    - job: DeployTerraform
+    - job: Terraform
+      displayName: 'Run Terraform with Env Auth'
       pool:
         vmImage: ubuntu-latest
       steps:
         - checkout: self
 
-        - task: AzureCLI@2
-          displayName: 'Run Terraform with Env Auth'
+        - task: TerraformInstaller@0
+          displayName: 'Install Terraform'
           inputs:
-            azureSubscription: 'Azure-Yousma-Connection'
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: |
-              echo "Setting environment variables for SP authentication"
-              export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
-              export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
-              export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
-              export ARM_TENANT_ID=$(ARM_TENANT_ID)
+            terraformVersion: '1.7.5'
 
-              cd terraform
+        - script: |
+            echo "Setting environment variables"
+            export ARM_CLIENT_ID=$(ARM_CLIENT_ID)
+            export ARM_CLIENT_SECRET=$(ARM_CLIENT_SECRET)
+            export ARM_SUBSCRIPTION_ID=$(ARM_SUBSCRIPTION_ID)
+            export ARM_TENANT_ID=$(ARM_TENANT_ID)
 
-              echo "Running terraform init..."
-              terraform init \
-                -backend-config="resource_group_name=$(tfBackendRg)" \
-                -backend-config="storage_account_name=$(tfStorage)" \
-                -backend-config="container_name=$(tfContainer)" \
-                -backend-config="key=$(tfKey)"
+            cd terraform
+            terraform init \
+              -backend-config="resource_group_name=$(tfBackendRg)" \
+              -backend-config="storage_account_name=$(tfStorage)" \
+              -backend-config="container_name=$(tfContainer)" \
+              -backend-config="key=$(tfKey)"
 
-              echo "Getting ACR credentials"
-              ACR_USERNAME=$(az acr credential show --name $(acrName) --query "username" -o tsv)
-              ACR_PASSWORD=$(az acr credential show --name $(acrName) --query "passwords[0].value" -o tsv)
+            echo "Fetching ACR credentials..."
+            ACR_USERNAME=$(az acr credential show --name $(acrName) --query "username" -o tsv)
+            ACR_PASSWORD=$(az acr credential show --name $(acrName) --query "passwords[0].value" -o tsv)
 
-              echo "Running terraform apply..."
-              terraform apply \
-                -var="resource_group_name=$(tfBackendRg)" \
-                -var="location=East US" \
-                -var="acr_name=$(acrName)" \
-                -var="app_service_plan_name=contact-asp" \
-                -var="web_app_name=$(webAppName)" \
-                -var="key_vault_name=$(keyVaultName)" \
-                -var="email_api_key=sample-api-key" \
-                -var="acr_admin_username=$ACR_USERNAME" \
-                -var="acr_admin_password=$ACR_PASSWORD" \
-                -var="container_image=$(containerImage)" \
-                -auto-approve
+            echo "Running Terraform apply..."
+            terraform apply \
+              -var="resource_group_name=$(tfBackendRg)" \
+              -var="location=$(location)" \
+              -var="acr_name=$(acrName)" \
+              -var="app_service_plan_name=$(app_service_plan_name)" \
+              -var="web_app_name=$(webAppName)" \
+              -var="key_vault_name=$(keyVaultName)" \
+              -var="email_api_key=$(email_api_key)" \
+              -var="acr_admin_username=$ACR_USERNAME" \
+              -var="acr_admin_password=$ACR_PASSWORD" \
+              -var="container_image=$(containerImage)" \
+              -auto-approve
+          displayName: 'Run Terraform Init and Apply'
