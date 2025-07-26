@@ -1,94 +1,52 @@
-terraform {
-  backend "azurerm" {}
-}
-
 provider "azurerm" {
   features {}
 }
 
 data "azurerm_client_config" "current" {}
 
-#############################
-# 🔧 Variables Declaration  #
-#############################
-
-variable "resource_group_name" {
-  type        = string
-  description = "Name of the resource group"
+# 🔧 Variables
+variable "resource_group_name" {}
+variable "location" {}
+variable "acr_name" {}
+variable "key_vault_name" {}
+variable "web_app_name" {}
+variable "app_service_plan_name" {}
+variable "app_service_sku" {
+  default = "B1"
+}
+variable "acr_admin_username" {}
+variable "acr_admin_password" {}
+variable "app_secret_value" {
+  sensitive = true
 }
 
-variable "location" {
-  type        = string
-  description = "Azure region"
+# 🔹 Resource Group
+resource "azurerm_resource_group" "rg" {
+  name     = var.resource_group_name
+  location = var.location
 }
 
-variable "acr_name" {
-  type        = string
-  description = "Azure Container Registry name"
-}
-
-variable "web_app_name" {
-  type        = string
-  description = "Azure Container App name"
-}
-
-variable "key_vault_name" {
-  type        = string
-  description = "Key Vault name"
-}
-
-variable "email_api_key" {
-  type        = string
-  description = "Email API Key to store in Key Vault"
-  sensitive   = true
-}
-
-variable "acr_admin_username" {
-  type        = string
-  description = "ACR admin username"
-}
-
-variable "acr_admin_password" {
-  type        = string
-  description = "ACR admin password"
-  sensitive   = true
-}
-
-variable "container_image" {
-  type        = string
-  description = "Docker image name"
-}
-
-variable "app_service_plan_name" {
-  type        = string
-  description = "App Service Plan name"
-}
-
-#############################
-# 🔧 Infrastructure         #
-#############################
-
-# 🔷 ACR
+# 🔹 Azure Container Registry
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
-  resource_group_name = var.resource_group_name
+  resource_group_name = azurerm_resource_group.rg.name
   location            = var.location
   sku                 = "Basic"
   admin_enabled       = true
 }
 
-# 🔐 Key Vault
+# 🔐 Azure Key Vault
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
-  resource_group_name         = var.resource_group_name
+  resource_group_name         = azurerm_resource_group.rg.name
   tenant_id                   = data.azurerm_client_config.current.tenant_id
   sku_name                    = "standard"
   purge_protection_enabled    = false
 }
 
 # 🔐 Access Policy for Terraform SPN
-resource "azurerm_key_vault_access_policy" "terraform_spn_policy" {
+resource "azurerm_key_vault_access_policy" "terraform_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
@@ -96,77 +54,62 @@ resource "azurerm_key_vault_access_policy" "terraform_spn_policy" {
   secret_permissions = ["Get", "Set", "List"]
 }
 
-# 🔐 Store API Key Secret in Key Vault
-resource "azurerm_key_vault_secret" "api_key" {
-  name         = "EMAIL-API-KEY"
-  value        = var.email_api_key
+# 🔐 Store App Secret
+resource "azurerm_key_vault_secret" "app_secret" {
+  name         = "APP-SECRET"
+  value        = var.app_secret_value
   key_vault_id = azurerm_key_vault.kv.id
 
-  depends_on = [azurerm_key_vault_access_policy.terraform_spn_policy]
+  depends_on = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# 🌐 Container App Environment
-resource "azurerm_container_app_environment" "env" {
-  name                = "${var.web_app_name}-env"
+# 🔷 App Service Plan
+resource "azurerm_app_service_plan" "asp" {
+  name                = var.app_service_plan_name
   location            = var.location
-  resource_group_name = var.resource_group_name
+  resource_group_name = azurerm_resource_group.rg.name
+  kind                = "Linux"
+  reserved            = true
+
+  sku {
+    tier = "Basic"
+    size = var.app_service_sku
+  }
 }
 
-# 🌐 Azure Container App
-resource "azurerm_container_app" "app" {
-  name                         = var.web_app_name
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = var.resource_group_name
+# 🌐 Web App for Containers
+resource "azurerm_linux_web_app" "webapp" {
+  name                = var.web_app_name
+  location            = var.location
+  resource_group_name = azurerm_resource_group.rg.name
+  service_plan_id     = azurerm_app_service_plan.asp.id
 
-  revision_mode = "Single"
+  site_config {
+    application_stack {
+      docker_image_name   = "${azurerm_container_registry.acr.login_server}/your-app-image:latest"
+      docker_registry_url = azurerm_container_registry.acr.login_server
+    }
+  }
 
   identity {
     type = "SystemAssigned"
   }
 
-  registry {
-    server               = azurerm_container_registry.acr.login_server
-    username             = var.acr_admin_username
-    password_secret_name = "acr-password"
+  app_settings = {
+    "DOCKER_REGISTRY_SERVER_USERNAME" = var.acr_admin_username
+    "DOCKER_REGISTRY_SERVER_PASSWORD" = var.acr_admin_password
+    "SECRET_FROM_VAULT"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_secret.id})"
+    "WEBSITES_PORT"                   = "3000"
   }
 
-  secret {
-    name  = "acr-password"
-    value = var.acr_admin_password
-  }
-
-  secret {
-    name  = "email-api-key"
-    value = azurerm_key_vault_secret.api_key.value
-  }
-
-  template {
-    container {
-      name   = "contact-app"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-      cpu    = 0.5
-      memory = "1.0Gi"
-
-      env {
-        name        = "EMAIL_API_KEY"
-        secret_name = "email-api-key"
-      }
-
-      env {
-        name  = "WEBSITES_PORT"
-        value = "3000"
-      }
-    }
-  }
-
-  depends_on = [azurerm_key_vault_secret.api_key]
+  depends_on = [azurerm_key_vault_secret.app_secret]
 }
 
-# 🔐 Access Policy for Container App Identity
-resource "azurerm_key_vault_access_policy" "app_policy" {
+# 🔐 Key Vault Access for Web App
+resource "azurerm_key_vault_access_policy" "webapp_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_container_app.app.identity[0].principal_id
+  object_id    = azurerm_linux_web_app.webapp.identity[0].principal_id
 
   secret_permissions = ["Get"]
 }
