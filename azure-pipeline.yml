@@ -17,8 +17,6 @@ variables:
   keyVaultName: 'contactkv123'
 
 stages:
-
-# -------------------- STAGE 1: Build and Push Docker --------------------
 - stage: Build
   displayName: 'Build and Push Docker Image'
   jobs:
@@ -38,7 +36,6 @@ stages:
             tags: |
               latest
 
-# -------------------- STAGE 2: Terraform Deploy --------------------
 - stage: Deploy
   displayName: 'Deploy Terraform Infrastructure'
   dependsOn: Build
@@ -54,7 +51,6 @@ stages:
           inputs:
             terraformVersion: '1.7.5'
 
-        # ✅ Terraform Init using proper backendServiceArm
         - task: TerraformTaskV1@0
           displayName: 'Terraform Init'
           inputs:
@@ -67,7 +63,6 @@ stages:
             backendAzureRmKey: $(tfKey)
             workingDirectory: 'terraform'
 
-        # ✅ Get ACR credentials
         - task: AzureCLI@2
           displayName: 'Get ACR Admin Credentials'
           inputs:
@@ -77,11 +72,9 @@ stages:
             inlineScript: |
               ACR_USERNAME=$(az acr credential show --name $(acrName) --query "username" -o tsv)
               ACR_PASSWORD=$(az acr credential show --name $(acrName) --query "passwords[0].value" -o tsv)
-
               echo "##vso[task.setvariable variable=ACR_USERNAME]$ACR_USERNAME"
               echo "##vso[task.setvariable variable=ACR_PASSWORD]$ACR_PASSWORD"
 
-        # ✅ Terraform Apply using TerraformTaskV1
         - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:

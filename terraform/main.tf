@@ -19,13 +19,13 @@ variable "acr_admin_username" {}
 variable "acr_admin_password" {}
 variable "container_image" {}
 
-# 1. Resource Group
+# Resource Group
 resource "azurerm_resource_group" "main" {
   name     = var.resource_group_name
   location = var.location
 }
 
-# 2. ACR
+# Azure Container Registry (ACR)
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = azurerm_resource_group.main.name
@@ -34,7 +34,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# 3. App Service Plan
+# App Service Plan
 resource "azurerm_app_service_plan" "asp" {
   name                = var.app_service_plan_name
   location            = var.location
@@ -48,7 +48,7 @@ resource "azurerm_app_service_plan" "asp" {
   }
 }
 
-# 4. Key Vault
+# Key Vault
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -59,14 +59,14 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
 }
 
-# 5. Key Vault Secret
+# Key Vault Secret
 resource "azurerm_key_vault_secret" "api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
 }
 
-# 6. Web App for Containers
+# Web App for Containers
 resource "azurerm_linux_web_app" "app" {
   name                = var.web_app_name
   location            = var.location
@@ -83,9 +83,9 @@ resource "azurerm_linux_web_app" "app" {
   }
 
   app_settings = {
-    WEBSITES_PORT = "3000"
-    EMAIL_API_KEY = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
-    DOCKER_REGISTRY_SERVER_URL      = "https://${azurerm_container_registry.acr.login_server}"
+    WEBSITES_PORT                  = "3000"
+    EMAIL_API_KEY                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
+    DOCKER_REGISTRY_SERVER_URL    = "https://${azurerm_container_registry.acr.login_server}"
     DOCKER_REGISTRY_SERVER_USERNAME = var.acr_admin_username
     DOCKER_REGISTRY_SERVER_PASSWORD = var.acr_admin_password
   }
@@ -95,7 +95,7 @@ resource "azurerm_linux_web_app" "app" {
   ]
 }
 
-# 7. Key Vault Access Policy
+# Key Vault Access Policy for Web App
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
