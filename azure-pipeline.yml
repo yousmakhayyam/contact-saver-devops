@@ -18,7 +18,7 @@ variables:
 
 stages:
 
-# -------------------- STAGE 1: Build & Push Docker Image --------------------
+# -------------------- STAGE 1: Build and Push Docker --------------------
 - stage: Build
   displayName: 'Build and Push Docker Image'
   jobs:
@@ -38,9 +38,9 @@ stages:
             tags: |
               latest
 
-# -------------------- STAGE 2: Deploy Infrastructure --------------------
+# -------------------- STAGE 2: Terraform Deploy --------------------
 - stage: Deploy
-  displayName: 'Deploy Terraform Infrastructure and App'
+  displayName: 'Deploy Terraform Infrastructure'
   dependsOn: Build
   jobs:
     - job: Terraform
@@ -54,7 +54,20 @@ stages:
           inputs:
             terraformVersion: '1.7.5'
 
-        # ✅ Get ACR Admin Credentials
+        # ✅ Terraform Init using proper backendServiceArm
+        - task: TerraformTaskV1@0
+          displayName: 'Terraform Init'
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            backendServiceArm: $(azureServiceConnection)
+            backendAzureRmResourceGroupName: $(tfBackendRg)
+            backendAzureRmStorageAccountName: $(tfStorage)
+            backendAzureRmContainerName: $(tfContainer)
+            backendAzureRmKey: $(tfKey)
+            workingDirectory: 'terraform'
+
+        # ✅ Get ACR credentials
         - task: AzureCLI@2
           displayName: 'Get ACR Admin Credentials'
           inputs:
@@ -68,39 +81,23 @@ stages:
               echo "##vso[task.setvariable variable=ACR_USERNAME]$ACR_USERNAME"
               echo "##vso[task.setvariable variable=ACR_PASSWORD]$ACR_PASSWORD"
 
-        # ✅ Terraform Init via Azure CLI (no arm_client_id errors)
-        - task: AzureCLI@2
-          displayName: 'Terraform Init'
-          inputs:
-            azureSubscription: $(azureServiceConnection)
-            scriptType: bash
-            scriptLocation: inlineScript
-            workingDirectory: 'terraform'
-            inlineScript: |
-              terraform init \
-                -backend-config="resource_group_name=$(tfBackendRg)" \
-                -backend-config="storage_account_name=$(tfStorage)" \
-                -backend-config="container_name=$(tfContainer)" \
-                -backend-config="key=$(tfKey)"
-
-        # ✅ Terraform Apply via CLI
-        - task: AzureCLI@2
+        # ✅ Terraform Apply using TerraformTaskV1
+        - task: TerraformTaskV1@0
           displayName: 'Terraform Apply'
           inputs:
-            azureSubscription: $(azureServiceConnection)
-            scriptType: bash
-            scriptLocation: inlineScript
+            provider: 'azurerm'
+            command: 'apply'
+            environmentServiceNameAzureRM: $(azureServiceConnection)
             workingDirectory: 'terraform'
-            inlineScript: |
-              terraform apply \
-                -var="resource_group_name=$(tfBackendRg)" \
-                -var="location=East US" \
-                -var="acr_name=$(acrName)" \
-                -var="app_service_plan_name=contact-asp" \
-                -var="web_app_name=$(webAppName)" \
-                -var="key_vault_name=$(keyVaultName)" \
-                -var="email_api_key=sample-api-key" \
-                -var="acr_admin_username=$(ACR_USERNAME)" \
-                -var="acr_admin_password=$(ACR_PASSWORD)" \
-                -var="container_image=$(containerImage)" \
-                -auto-approve
+            commandOptions: |
+              -var="resource_group_name=$(tfBackendRg)" \
+              -var="location=East US" \
+              -var="acr_name=$(acrName)" \
+              -var="app_service_plan_name=contact-asp" \
+              -var="web_app_name=$(webAppName)" \
+              -var="key_vault_name=$(keyVaultName)" \
+              -var="email_api_key=sample-api-key" \
+              -var="acr_admin_username=$(ACR_USERNAME)" \
+              -var="acr_admin_password=$(ACR_PASSWORD)" \
+              -var="container_image=$(containerImage)" \
+              -auto-approve
