@@ -4,21 +4,31 @@ trigger:
       - main
 
 variables:
-  acrName: 'contactsaveracr123'
-  containerImage: 'contact-saver'
-  dockerfilePath: 'backend/Dockerfile'
-  tfBackendRg: 'yousma-rg'
-  tfStorage: 'yousmastorage'
-  tfContainer: 'tfstate'
-  tfKey: 'terraform.tfstate'
-  webAppName: 'contact-webapp-123'
-  keyVaultName: 'contactkv123'
-  location: 'East US'
-  app_service_plan_name: 'contact-asp'
-  email_api_key: 'sample-api-key'
-
-# Import Secret Variables
-- group: Azurecredentials
+  - group: Azurecredentials   # ✅ Correctly nested
+  - name: acrName
+    value: 'contactsaveracr123'
+  - name: containerImage
+    value: 'contact-saver'
+  - name: dockerfilePath
+    value: 'backend/Dockerfile'
+  - name: tfBackendRg
+    value: 'yousma-rg'
+  - name: tfStorage
+    value: 'yousmastorage'
+  - name: tfContainer
+    value: 'tfstate'
+  - name: tfKey
+    value: 'terraform.tfstate'
+  - name: webAppName
+    value: 'contact-webapp-123'
+  - name: keyVaultName
+    value: 'contactkv123'
+  - name: location
+    value: 'East US'
+  - name: app_service_plan_name
+    value: 'contact-asp'
+  - name: email_api_key
+    value: 'sample-api-key'
 
 stages:
 - stage: Build
