@@ -20,7 +20,7 @@ variable "acr_admin_username" {}
 variable "acr_admin_password" {}
 variable "container_image" {}
 
-# Azure Container Registry (ACR)
+# 🔷 ACR
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
@@ -29,7 +29,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# Updated App Service Plan
+# 🔷 App Service Plan
 resource "azurerm_service_plan" "asp" {
   name                = var.app_service_plan_name
   location            = var.location
@@ -38,7 +38,7 @@ resource "azurerm_service_plan" "asp" {
   sku_name            = "B1"
 }
 
-# Key Vault (fixed deprecated field)
+# 🔷 Key Vault
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -48,14 +48,25 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
 }
 
-# Store API Key Secret in Key Vault
+# 🔐 Access Policy for Terraform (so it can create secrets)
+resource "azurerm_key_vault_access_policy" "terraform_spn_policy" {
+  key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = data.azurerm_client_config.current.object_id
+
+  secret_permissions = ["Get", "Set", "List"]
+}
+
+# 🔐 Store API Key Secret
 resource "azurerm_key_vault_secret" "api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
+
+  depends_on = [azurerm_key_vault_access_policy.terraform_spn_policy]
 }
 
-# Linux Web App for Containers
+# 🌐 Linux Web App
 resource "azurerm_linux_web_app" "app" {
   name                = var.web_app_name
   location            = var.location
@@ -79,12 +90,10 @@ resource "azurerm_linux_web_app" "app" {
     DOCKER_REGISTRY_SERVER_PASSWORD = var.acr_admin_password
   }
 
-  depends_on = [
-    azurerm_key_vault_secret.api_key
-  ]
+  depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# Key Vault Access Policy (fix: identity[0] and capital "Get")
+# 🔐 Access Policy for Web App Identity (to read secret at runtime)
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
