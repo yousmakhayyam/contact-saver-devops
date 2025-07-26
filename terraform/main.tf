@@ -8,16 +8,6 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# 🔶 Variables
-variable "resource_group_name" {}
-variable "location" {}
-variable "acr_name" {}
-variable "web_app_name" {}
-variable "key_vault_name" {}
-variable "email_api_key" {}
-variable "acr_admin_username" {}
-variable "acr_admin_password" {}
-variable "container_image" {}
 
 # 🔷 ACR
 resource "azurerm_container_registry" "acr" {
