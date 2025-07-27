@@ -23,7 +23,7 @@ stages:
     displayName: Build and Push Docker Image to ACR
     jobs:
       - job: Build
-        timeoutInMinutes: 20  # Optional timeout
+        timeoutInMinutes: 20  # Optional timeouts
         pool:
           vmImage: 'ubuntu-latest'
         steps:
