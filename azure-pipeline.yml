@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main # main
+      - main
 
 variables:
   - group: Azurecredentials
@@ -23,7 +23,7 @@ stages:
     displayName: Build and Push Docker Image to ACR
     jobs:
       - job: Build
-        timeoutInMinutes: 20  # Optional timeout
+        timeoutInMinutes: 20
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -44,7 +44,7 @@ stages:
     jobs:
       - job: TerraformDeploy
         displayName: Terraform Deploy Infra and WebApp
-        timeoutInMinutes: 40  # Increase timeout or split pipeline
+        timeoutInMinutes: 40
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -79,8 +79,8 @@ stages:
                 web_app_name=contact-saver-app
                 key_vault_name=yousma-kv
                 email_api_key=$(email_api_key)
-                acr_admin_username=$(acr_admin_username)
-                acr_admin_password=$(acr_admin_password)
+                acr_admin_username=$(acr_admin_user)
+                acr_admin_password=$(acr_admin_pass)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
 
@@ -98,8 +98,8 @@ stages:
                 web_app_name=contact-saver-app
                 key_vault_name=yousma-kv
                 email_api_key=$(email_api_key)
-                acr_admin_username=$(acr_admin_username)
-                acr_admin_password=$(acr_admin_password)
+                acr_admin_username=$(acr_admin_user)
+                acr_admin_password=$(acr_admin_pass)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
               ensureBackend: true
