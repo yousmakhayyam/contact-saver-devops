@@ -1,13 +1,4 @@
-terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.0"
-    }
-  }
-
-  backend "azurerm" {}
-}
+# main.tf
 
 provider "azurerm" {
   features {}
@@ -37,8 +28,8 @@ variable "key_vault_name" {
 }
 
 variable "email_api_key" {
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "acr_admin_username" {
@@ -46,15 +37,15 @@ variable "acr_admin_username" {
 }
 
 variable "acr_admin_password" {
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
 }
 
 variable "container_image" {
   type = string
 }
 
-variable "app_service_plan_name" {
+variable "app_service_plan_name" { # This variable is now relevant and used
   type = string
 }
 
@@ -92,72 +83,60 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# 🌐 Container App Env
-resource "azurerm_container_app_environment" "env" {
-  name                = "${var.web_app_name}-env"
+# 🌐 App Service Plan (for Azure Web App for Containers)
+resource "azurerm_app_service_plan" "app_plan" {
+  name                = var.app_service_plan_name
   location            = var.location
   resource_group_name = var.resource_group_name
+  kind                = "Linux" # Important for Linux containers
+  reserved            = true    # Required for Linux plans
+
+  sku {
+    tier = "Basic"
+    size = "B1" # Or S1, P1V2 etc.
+  }
 }
 
-# 🚀 Container App
-resource "azurerm_container_app" "app" {
-  name                          = var.web_app_name
-  container_app_environment_id  = azurerm_container_app_environment.env.id
-  resource_group_name           = var.resource_group_name
+# 🚀 Azure Web App for Containers
+resource "azurerm_app_service" "web_app" {
+  name                = var.web_app_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  app_service_plan_id = azurerm_app_service_plan.app_plan.id
 
-  revision_mode = "Single"
+  # Configure Web App to pull from ACR using admin credentials
+  app_settings = {
+    "DOCKER_REGISTRY_SERVER_URL"      = azurerm_container_registry.acr.login_server
+    "DOCKER_REGISTRY_SERVER_USERNAME" = var.acr_admin_username
+    "DOCKER_REGISTRY_SERVER_PASSWORD" = var.acr_admin_password
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false" # For stateless containers
+    "WEBSITES_PORT" = "3000" # Your app listens on 3000
+    # Example of referencing a Key Vault secret directly in App Settings (requires Managed Identity)
+    "EMAIL_API_KEY_SETTING" = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
+  }
+
+  site_config {
+    # This sets the initial image, but AzureWebAppContainer@1 task will update it
+    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+    always_on        = true
+  }
 
   identity {
-    type = "SystemAssigned"
+    type = "SystemAssigned" # Enable Managed Identity for the Web App
   }
-
-  registry {
-    server               = azurerm_container_registry.acr.login_server
-    username             = var.acr_admin_username
-    password_secret_name = "acr-password"
-  }
-
-  secret {
-    name  = "acr-password"
-    value = var.acr_admin_password
-  }
-
-  secret {
-    name  = "email-api-key"
-    value = azurerm_key_vault_secret.api_key.value
-  }
-
-  template {
-    container {
-      name   = "contact-app"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-      cpu    = 0.5
-      memory = "1.0Gi"
-
-      env {
-        name        = "EMAIL_API_KEY"
-        secret_name = "email-api-key"
-      }
-
-      env {
-        name  = "WEBSITES_PORT"
-        value = "3000"
-      }
-    }
-  }
-
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# 🔐 App Access to Key Vault
+# 🔐 App Access to Key Vault (for Web App Managed Identity)
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_container_app.app.identity[0].principal_id
+  tenant_id    = azurerm_app_service.web_app.identity[0].tenant_id
+  object_id    = azurerm_app_service.web_app.identity[0].principal_id
 
-  secret_permissions = ["Get"]
+  secret_permissions = ["Get"] # Grant Get permission for the Web App to read secrets
 }
-output "container_app_url" {
-  value       = azurerm_container_app.app.latest_revision_fqdn
-  description = "Public URL of the container app"
+
+output "web_app_url" {
+  value       = azurerm_app_service.web_app.default_host_name
+  description = "Public URL of the web app"
 }
