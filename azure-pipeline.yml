@@ -23,7 +23,7 @@ stages:
     displayName: Build and Push Docker Image to ACR
     jobs:
       - job: Build
-        timeoutInMinutes: 20  # Optional timeouts
+        timeoutInMinutes: 20
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -44,7 +44,7 @@ stages:
     jobs:
       - job: TerraformDeploy
         displayName: Terraform Deploy Infra and WebApp
-        timeoutInMinutes: 40  # Increase timeout or split pipeline
+        timeoutInMinutes: 40
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -53,25 +53,25 @@ stages:
             inputs:
               terraformVersion: '1.6.6'
 
-          - task: TerraformTaskV4@4
+          - task: TerraformCLI@0
             displayName: Terraform Init
             inputs:
-              provider: 'azurerm'
-              command: 'init'
+              command: init
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              backendType: azurerm
               backendServiceArm: 'Azure-Yousma-Connection'
+              ensureBackend: true
               backendAzureRmResourceGroupName: '$(tfBackendRg)'
               backendAzureRmStorageAccountName: '$(tfStorage)'
               backendAzureRmContainerName: '$(tfContainer)'
               backendAzureRmKey: 'terraform.tfstate'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-          - task: TerraformTaskV4@4
+          - task: TerraformCLI@0
             displayName: Terraform Plan
             inputs:
-              provider: 'azurerm'
-              command: 'plan'
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              command: plan
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              environmentServiceName: 'Azure-Yousma-Connection'
               vars: |
                 resource_group_name=$(tfBackendRg)
                 location=East US
@@ -84,13 +84,12 @@ stages:
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
 
-          - task: TerraformTaskV4@4
+          - task: TerraformCLI@0
             displayName: Terraform Apply
             inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              command: apply
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              environmentServiceName: 'Azure-Yousma-Connection'
               vars: |
                 resource_group_name=$(tfBackendRg)
                 location=East US
@@ -102,9 +101,4 @@ stages:
                 acr_admin_password=$(acr_admin_password)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
-              ensureBackend: true
-              allowTelemetryCollection: false
-              runAzLogin: true
-              isTelemetryEnabled: false
-              installTerraform: false
               commandOptions: '-auto-approve'
