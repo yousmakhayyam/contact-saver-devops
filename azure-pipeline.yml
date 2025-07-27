@@ -42,35 +42,34 @@ stages:
     dependsOn: BuildAndPush
     jobs:
       - job: TerraformDeploy
+        displayName: Terraform Deploy Infra and WebApp
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - task: TerraformInstaller@1
             displayName: Install Terraform
             inputs:
-              terraformVersion: '1.5.0'
+              terraformVersion: 'latest'
 
-          - task: TerraformCLI@0
+          - task: TerraformTaskV4@4
             displayName: Terraform Init
             inputs:
               provider: 'azurerm'
               command: 'init'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              backendType: 'azurerm'
               backendServiceArm: 'Azure-Yousma-Connection'
-              ensureBackend: true
               backendAzureRmResourceGroupName: '$(tfBackendRg)'
               backendAzureRmStorageAccountName: '$(tfStorage)'
               backendAzureRmContainerName: '$(tfContainer)'
               backendAzureRmKey: 'terraform.tfstate'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-          - task: TerraformCLI@0
+          - task: TerraformTaskV4@4
             displayName: Terraform Plan
             inputs:
               provider: 'azurerm'
               command: 'plan'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               vars: |
                 resource_group_name=$(tfBackendRg)
                 location=East US
@@ -83,13 +82,13 @@ stages:
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
 
-          - task: TerraformCLI@0
+          - task: TerraformTaskV4@4
             displayName: Terraform Apply
             inputs:
               provider: 'azurerm'
               command: 'apply'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               vars: |
                 resource_group_name=$(tfBackendRg)
                 location=East US
@@ -101,4 +100,9 @@ stages:
                 acr_admin_password=$(acr_admin_password)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
-              autoApprove: true
+              ensureBackend: true
+              allowTelemetryCollection: false
+              runAzLogin: true
+              isTelemetryEnabled: false
+              installTerraform: false
+              commandOptions: '-auto-approve'
