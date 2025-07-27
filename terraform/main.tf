@@ -13,8 +13,8 @@ variable "email_api_key" {
   type      = string
   sensitive = true
 }
-variable "acr_admin_username" { type = string }
-variable "acr_admin_password" {
+variable "acr_admin_user" { type = string }
+variable "acr_admin_pass" {
   type      = string
   sensitive = true
 }
@@ -72,8 +72,8 @@ resource "azurerm_app_service" "web_app" {
 
   app_settings = {
     "DOCKER_REGISTRY_SERVER_URL"      = azurerm_container_registry.acr.login_server
-    "DOCKER_REGISTRY_SERVER_USERNAME" = var.acr_admin_username
-    "DOCKER_REGISTRY_SERVER_PASSWORD" = var.acr_admin_password
+    "DOCKER_REGISTRY_SERVER_USERNAME" = var.acr_admin_user
+    "DOCKER_REGISTRY_SERVER_PASSWORD" = var.acr_admin_pass
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
     "WEBSITES_PORT"                   = "3000"
     "EMAIL_API_KEY_SETTING"          = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
