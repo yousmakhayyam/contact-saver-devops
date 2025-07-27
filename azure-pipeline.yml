@@ -23,6 +23,7 @@ stages:
     displayName: Build and Push Docker Image to ACR
     jobs:
       - job: Build
+        timeoutInMinutes: 20  # Optional timeout
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -43,13 +44,14 @@ stages:
     jobs:
       - job: TerraformDeploy
         displayName: Terraform Deploy Infra and WebApp
+        timeoutInMinutes: 40  # Increase timeout or split pipeline
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - task: TerraformInstaller@1
             displayName: Install Terraform
             inputs:
-              terraformVersion: '1.6.6'  # You can use 'latest' too
+              terraformVersion: '1.6.6'
 
           - task: TerraformTaskV4@4
             displayName: Terraform Init
@@ -104,5 +106,5 @@ stages:
               allowTelemetryCollection: false
               runAzLogin: true
               isTelemetryEnabled: false
-              installTerraform: true  # ✅ FIXED to avoid version errors
+              installTerraform: false
               commandOptions: '-auto-approve'
