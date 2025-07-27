@@ -1,157 +1,104 @@
-# azure-pipeline.yml
-
 trigger:
   branches:
     include:
       - main
 
 variables:
-  # Link to your Azure DevOps Variable Group
-  - group: Azurecredentials # This links your 'Azurecredentials' variable group
-
-  # Pipeline variables from your previous YAML
+  - group: Azurecredentials
   - name: acrName
     value: 'contactsaveracr1234'
   - name: containerImage
     value: 'contact-saver'
   - name: dockerfilePath
-    value: 'backend' # Directory where Dockerfile resides (build context)
+    value: 'backend'
   - name: tfBackendRg
     value: 'yousma-rg'
   - name: tfStorage
     value: 'yousmastorage'
   - name: tfContainer
     value: 'tfstate'
-  - name: tfKey
-    value: 'terraform.tfstate' # Key for the state file in the container
-  - name: webAppName
-    value: 'contact-webapp-123'
-  - name: keyVaultName
-    value: 'contactkv123'
-  - name: location
-    value: 'East US'
-  - name: app_service_plan_name # This variable is now relevant and passed to Terraform
-    value: 'contact-asp'
-  - name: vmImageName
-    value: 'ubuntu-latest' # Agent image
-  - name: terraformWorkingDirectory
-    value: 'terraform' # Path to your Terraform files relative to repo root
 
 stages:
+  - stage: BuildAndPush
+    displayName: Build and Push Docker Image to ACR
+    jobs:
+      - job: Build
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Docker@2
+            displayName: Build and Push
+            inputs:
+              containerRegistry: 'acr-connection1'
+              repository: '$(containerImage)'
+              command: 'buildAndPush'
+              Dockerfile: '$(dockerfilePath)/Dockerfile'
+              buildContext: '$(dockerfilePath)'
+              tags: |
+                latest
 
-# ---------- 🔧 Build Docker Image ----------
-- stage: Build
-  displayName: 'Build and Push Docker Image'
-  jobs:
-    - job: BuildImage
-      pool:
-        vmImage: $(vmImageName) # Using $(vmImageName) for consistency
-      steps:
-        - checkout: self
+  - stage: Deploy
+    displayName: Deploy Infrastructure and App
+    dependsOn: BuildAndPush
+    jobs:
+      - job: TerraformDeploy
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: '1.5.0'
 
-        - task: Docker@2
-          displayName: 'Build and Push to ACR'
-          inputs:
-            containerRegistry: 'acr-connection1' # Your ACR Service Connection name
-            repository: $(containerImage)
-            command: buildAndPush
-            Dockerfile: '$(dockerfilePath)/Dockerfile' # Corrected path to the Dockerfile itself
-            context: '$(dockerfilePath)' # Set the build context to the 'backend' directory
-            tags: |
-              latest
-              $(Build.BuildId) # This is now a clean tag, no comment here!
+          - task: TerraformCLI@0
+            displayName: Terraform Init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              backendType: 'azurerm'
+              backendServiceArm: 'Azure-Yousma-Connection'
+              ensureBackend: true
+              backendAzureRmResourceGroupName: '$(tfBackendRg)'
+              backendAzureRmStorageAccountName: '$(tfStorage)'
+              backendAzureRmContainerName: '$(tfContainer)'
+              backendAzureRmKey: 'terraform.tfstate'
 
-# ---------- 🚀 Deploy Infrastructure ----------
-- stage: Deploy
-  displayName: 'Deploy Terraform Infrastructure & App'
-  dependsOn: Build
-  jobs:
-    - job: TerraformAndAppDeploy
-      displayName: 'Run Terraform and Deploy App'
-      pool:
-        vmImage: $(vmImageName)
-      steps:
-        - checkout: self
+          - task: TerraformCLI@0
+            displayName: Terraform Plan
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              vars: |
+                resource_group_name=$(tfBackendRg)
+                location=East US
+                acr_name=$(acrName)
+                web_app_name=contact-saver-app
+                key_vault_name=yousma-kv
+                email_api_key=$(email_api_key)
+                acr_admin_username=$(acr_admin_username)
+                acr_admin_password=$(acr_admin_password)
+                container_image=$(containerImage)
+                app_service_plan_name=contact-plan
 
-        # Ensure the Terraform state storage account and container exist before init
-        - task: AzureCLI@2
-          displayName: 'Create Terraform State Storage Account (if not exists)'
-          inputs:
-            azureSubscription: 'Azure-Yousma-Connection' # Your Azure Service Connection name
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: |
-              set -e # Exit immediately if a command exits with a non-zero status
-
-              # Check if resource group for backend exists, create if not
-              az group show --name $(tfBackendRg) &>/dev/null || az group create --name $(tfBackendRg) --location $(location)
-
-              # Check if storage account for backend exists, create if not
-              az storage account show --name $(tfStorage) --resource-group $(tfBackendRg) &>/dev/null || \
-                az storage account create --name $(tfStorage) --resource-group $(tfBackendRg) --location $(location) --sku Standard_LRS
-
-              # Check if container for backend exists, create if not
-              ACCOUNT_KEY=$(az storage account keys list --resource-group $(tfBackendRg) --account-name $(tfStorage) --query '[0].value' -o tsv)
-              az storage container show --name $(tfContainer) --account-name $(tfStorage) --account-key $ACCOUNT_KEY &>/dev/null || \
-                az storage container create --name $(tfContainer) --account-name $(tfStorage) --public-access off --account-key $ACCOUNT_KEY
-
-        - task: TerraformInstaller@0
-          displayName: 'Install Terraform'
-          inputs:
-            terraformVersion: '1.7.5'
-
-        - task: AzureCLI@2
-          displayName: 'Terraform Init - Reconfigure Backend'
-          inputs:
-            azureSubscription: 'Azure-Yousma-Connection' # Your Azure Service Connection name
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: |
-              echo "⏳ Switching to terraform folder..."
-              cd $(terraformWorkingDirectory)
-
-              echo "🔁 Running terraform init with -reconfigure"
-              terraform init \
-                -reconfigure \
-                -backend-config="resource_group_name=$(tfBackendRg)" \
-                -backend-config="storage_account_name=$(tfStorage)" \
-                -backend-config="container_name=$(tfContainer)" \
-                -backend-config="key=$(tfKey)"
-
-        - task: AzureCLI@2
-          displayName: 'Terraform Apply'
-          inputs:
-            azureSubscription: 'Azure-Yousma-Connection' # Your Azure Service Connection name
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: |
-              echo "🚀 Running terraform apply"
-              cd $(terraformWorkingDirectory) # Ensure we are in the terraform directory
-
-              terraform apply \
-                -var="resource_group_name=$(tfBackendRg)" \
-                -var="location=$(location)" \
-                -var="acr_name=$(acrName)" \
-                -var="web_app_name=$(webAppName)" \
-                -var="key_vault_name=$(keyVaultName)" \
-                -var="email_api_key=$(email_api_key)" \
-                -var="acr_admin_username=$(acr_admin_username)" \
-                -var="acr_admin_password=$(acr_admin_password)" \
-                -var="container_image=$(containerImage)" \
-                -var="app_service_plan_name=$(app_service_plan_name)" \
-                -auto-approve
-
-        # ---------- 🚀 Deploy Web App Container ----------
-        # This task deploys the image to the Web App provisioned by Terraform
-        - task: AzureWebAppContainer@1
-          displayName: 'Deploy Web App Container'
-          inputs:
-            azureSubscription: 'Azure-Yousma-Connection' # Your Azure Service Connection name
-            appName: '$(webAppName)' # The name of the Web App provisioned by Terraform
-            # Full image path: <acrLoginServer>/<repositoryName>:<tag>
-            imageName: '$(acrName).azurecr.io/$(containerImage):latest' # Using 'latest' tag from the build stage
-            # If you want to use the BuildId for traceability:
-            # imageName: '$(acrName).azurecr.io/$(containerImage):$(Build.BuildId)'
-            # If your ACR is private and Web App Managed Identity is used for pull,
-            # ensure the Managed Identity has AcrPull role on your ACR.
-            # No need to specify registry credentials here if using Managed Identity.
+          - task: TerraformCLI@0
+            displayName: Terraform Apply
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              vars: |
+                resource_group_name=$(tfBackendRg)
+                location=East US
+                acr_name=$(acrName)
+                web_app_name=contact-saver-app
+                key_vault_name=yousma-kv
+                email_api_key=$(email_api_key)
+                acr_admin_username=$(acr_admin_username)
+                acr_admin_password=$(acr_admin_password)
+                container_image=$(containerImage)
+                app_service_plan_name=contact-plan
+              autoApprove: true
