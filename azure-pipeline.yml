@@ -1,10 +1,10 @@
 trigger:
   branches:
     include:
-      - main  # main branch
+      - main  # On push to main
 
 variables:
-  - group: Azurecredentials
+  - group: Azurecredentials  # 👈 Contains secrets like email_api_key
   - name: acrName
     value: 'contactsaveracr1234'
   - name: containerImage
@@ -27,8 +27,6 @@ variables:
     value: 'East US'
   - name: app_service_plan_name
     value: 'contact-asp'
-  - name: email_api_key
-    value: 'sample-api-key'
 
 stages:
 
@@ -45,20 +43,20 @@ stages:
         - task: Docker@2
           displayName: 'Build and Push to ACR'
           inputs:
-            containerRegistry: 'acr-connection1'  # ✅ Docker Registry type
+            containerRegistry: 'acr-connection1'  # DockerRegistry type connection
             repository: $(containerImage)
             command: buildAndPush
             Dockerfile: $(dockerfilePath)
             tags: |
               latest
 
-# ---------- 🚀 Deploy Infrastructure ----------
+# ---------- 🚀 Deploy Terraform Infrastructure ----------
 - stage: Deploy
-  displayName: 'Deploy Terraform Infrastructure'
+  displayName: 'Deploy Terraform Infrastructure and App'
   dependsOn: Build
   jobs:
     - job: Terraform
-      displayName: 'Run Terraform'
+      displayName: 'Terraform Apply'
       pool:
         vmImage: ubuntu-latest
       steps:
@@ -72,21 +70,19 @@ stages:
         - task: AzureCLI@2
           displayName: 'Terraform Init and Apply'
           inputs:
-            azureSubscription: 'Azure-Yousma-Connection'  # ✅ AzureRM type
+            azureSubscription: 'Azure-Yousma-Connection'  # AzureRM type connection
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: |
-              echo "Setting up environment..."
+              echo "Starting Terraform Provisioning..."
               cd terraform
 
-              echo "Terraform Init..."
               terraform init \
                 -backend-config="resource_group_name=$(tfBackendRg)" \
                 -backend-config="storage_account_name=$(tfStorage)" \
                 -backend-config="container_name=$(tfContainer)" \
                 -backend-config="key=$(tfKey)"
 
-              echo "Terraform Apply..."
               terraform apply \
                 -var="resource_group_name=$(tfBackendRg)" \
                 -var="location=$(location)" \
