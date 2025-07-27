@@ -74,10 +74,10 @@ stages:
             scriptType: bash
             scriptLocation: inlineScript
             inlineScript: |
-              echo "Setting up environment..."
+              echo "⏳ Switching to terraform folder..."
               cd terraform
 
-              echo "Terraform Init..."
+              echo "🔁 Running terraform init with -reconfigure"
               terraform init \
                 -reconfigure \
                 -backend-config="resource_group_name=$(tfBackendRg)" \
@@ -85,7 +85,7 @@ stages:
                 -backend-config="container_name=$(tfContainer)" \
                 -backend-config="key=$(tfKey)"
 
-              echo "Terraform Apply..."
+              echo "🚀 Running terraform apply"
               terraform apply \
                 -var="resource_group_name=$(tfBackendRg)" \
                 -var="location=$(location)" \
