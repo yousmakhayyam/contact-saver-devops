@@ -30,7 +30,7 @@ stages:
           - task: Docker@2
             displayName: Build and Push Docker Image
             inputs:
-              containerRegistry: 'acr-connection1' # This must be your Azure DevOps service connection to ACR
+              containerRegistry: 'acr-connection1' # Your ACR service connection
               repository: '$(containerImage)'
               command: 'buildAndPush'
               Dockerfile: '$(dockerfilePath)/Dockerfile'
@@ -79,10 +79,11 @@ stages:
                 web_app_name=contact-saver-app
                 key_vault_name=yousma-kv
                 email_api_key=$(email_api_key)
-                acr_admin_user=$(acr_admin_user)
-                acr_admin_pass=$(acr_admin_pass)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
+            env:
+              acr_admin_user: $(acr_admin_user)
+              acr_admin_pass: $(acr_admin_pass)
 
           - task: TerraformTaskV4@4
             displayName: Terraform Apply
@@ -98,8 +99,6 @@ stages:
                 web_app_name=contact-saver-app
                 key_vault_name=yousma-kv
                 email_api_key=$(email_api_key)
-                acr_admin_user=$(acr_admin_user)
-                acr_admin_pass=$(acr_admin_pass)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
               ensureBackend: true
@@ -108,3 +107,6 @@ stages:
               isTelemetryEnabled: false
               installTerraform: false
               commandOptions: '-auto-approve'
+            env:
+              acr_admin_user: $(acr_admin_user)
+              acr_admin_pass: $(acr_admin_pass)
