@@ -45,7 +45,7 @@ stages:
   jobs:
     - job: BuildImage
       pool:
-        vmImage: $(vmImageName)
+        vmImage: $(vmImageName) # Using $(vmImageName) for consistency
       steps:
         - checkout: self
 
@@ -59,7 +59,7 @@ stages:
             context: '$(dockerfilePath)' # Set the build context to the 'backend' directory
             tags: |
               latest
-              $(Build.BuildId) # It's good practice to also tag with BuildId for traceability
+              $(Build.BuildId) # This is now a clean tag, no comment here!
 
 # ---------- 🚀 Deploy Infrastructure ----------
 - stage: Deploy
