@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main  # On push to main
+      - main  # On push to 
 
 variables:
   - group: Azurecredentials  # 👈 Contains secrets like email_api_key
