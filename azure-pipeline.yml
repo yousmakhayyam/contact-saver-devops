@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main # main
+      - main
 
 variables:
   - group: Azurecredentials
@@ -56,6 +56,10 @@ stages:
               KeyVaultName: 'contactkv123'
               SecretsFilter: 'acr-admin-user,acr-admin-pass,EMAIL-API-KEY'
               RunAsPreJob: true
+              envVariableMappings: |
+                acr-admin-user=ACR_ADMIN_USER
+                acr-admin-pass=ACR_ADMIN_PASS
+                EMAIL-API-KEY=EMAIL_API_KEY
 
           - task: TerraformInstaller@1
             displayName: Install Terraform
