@@ -44,7 +44,7 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
 }
 
-# Access policy for Terraform to set secret
+# Terraform access to Key Vault
 resource "azurerm_key_vault_access_policy" "terraform_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -53,7 +53,7 @@ resource "azurerm_key_vault_access_policy" "terraform_policy" {
   secret_permissions = ["Get", "Set", "List"]
 }
 
-# Store secret
+# Store API Key
 resource "azurerm_key_vault_secret" "api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
@@ -61,38 +61,34 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# App Service Plan
-resource "azurerm_app_service_plan" "app_plan" {
+# ✅ Updated App Service Plan Resource
+resource "azurerm_service_plan" "app_plan" {
   name                = var.app_service_plan_name
   location            = var.location
   resource_group_name = var.resource_group_name
-  kind                = "Linux"
-  reserved            = true
-
-  sku {
-    tier = "Basic"
-    size = "B1"
-  }
+  os_type             = "Linux"
+  sku_name            = "B1"
 }
 
-# App Service (Web App)
+# Web App
 resource "azurerm_app_service" "web_app" {
   name                = var.web_app_name
   location            = var.location
   resource_group_name = var.resource_group_name
-  app_service_plan_id = azurerm_app_service_plan.app_plan.id
+  app_service_plan_id = azurerm_service_plan.app_plan.id
 
   identity {
     type = "SystemAssigned"
   }
 
   app_settings = {
-    "DOCKER_REGISTRY_SERVER_URL"         = azurerm_container_registry.acr.login_server
-    "DOCKER_REGISTRY_SERVER_USERNAME"    = var.acr_admin_user
-    "DOCKER_REGISTRY_SERVER_PASSWORD"    = var.acr_admin_pass
+    "DOCKER_REGISTRY_SERVER_URL"          = azurerm_container_registry.acr.login_server
+    "DOCKER_REGISTRY_SERVER_USERNAME"     = var.acr_admin_user
+    "DOCKER_REGISTRY_SERVER_PASSWORD"     = var.acr_admin_pass
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
-    "WEBSITES_PORT"                      = "3000"
-    "EMAIL_API_KEY_SETTING"             = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.secret_uri_with_version})"
+    "WEBSITES_PORT"                       = "3000"
+    # ✅ Corrected usage of Key Vault secret URI
+    "EMAIL_API_KEY_SETTING"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.secret_id})"
   }
 
   site_config {
@@ -103,7 +99,7 @@ resource "azurerm_app_service" "web_app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# App Identity Access to Key Vault
+# Give App Access to Key Vault
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_app_service.web_app.identity[0].tenant_id
@@ -112,7 +108,7 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   secret_permissions = ["Get"]
 }
 
-# Output the Web App URL
+# Output Web URL
 output "web_app_url" {
   value       = azurerm_app_service.web_app.default_host_name
   description = "Public URL of the web app"
