@@ -1,9 +1,5 @@
 provider "azurerm" {
-  features {
-    container_app {
-      auto_upgrade_minor_version = true
-    }
-  }
+  features {}
 }
 
 data "azurerm_client_config" "current" {}
