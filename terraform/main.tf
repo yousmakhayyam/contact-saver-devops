@@ -28,6 +28,7 @@ variable "container_image" { type = string }
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
+  location            = var.location
   sku                 = "Basic"
   admin_enabled       = true
 }
@@ -64,19 +65,17 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-# ✅ Container App
+# ✅ Container App (location removed here)
 resource "azurerm_container_app" "app" {
   name                          = var.web_app_name
   container_app_environment_id  = azurerm_container_app_environment.env.id
   resource_group_name           = var.resource_group_name
-  location                      = var.location
   revision_mode                 = "Single"
 
   identity {
     type = "SystemAssigned"
   }
 
-  # ✅ Corrected: secret block is at top level
   secret {
     name  = "EMAIL-API-KEY"
     value = azurerm_key_vault_secret.api_key.value
@@ -96,7 +95,6 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # ✅ Required for Single revision mode: ingress + traffic_weight
   ingress {
     external_enabled = true
     target_port      = 3000
@@ -111,7 +109,7 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ✅ Access policy for container app to fetch secret
+# Access Policy for Container App Identity
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
