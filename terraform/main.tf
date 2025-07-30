@@ -61,7 +61,7 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# ✅ Updated App Service Plan Resource
+# App Service Plan
 resource "azurerm_service_plan" "app_plan" {
   name                = var.app_service_plan_name
   location            = var.location
@@ -70,12 +70,12 @@ resource "azurerm_service_plan" "app_plan" {
   sku_name            = "B1"
 }
 
-# Web App
-resource "azurerm_app_service" "web_app" {
+# ✅ Updated to use azurerm_linux_web_app instead of deprecated azurerm_app_service
+resource "azurerm_linux_web_app" "web_app" {
   name                = var.web_app_name
   location            = var.location
   resource_group_name = var.resource_group_name
-  app_service_plan_id = azurerm_service_plan.app_plan.id
+  service_plan_id     = azurerm_service_plan.app_plan.id
 
   identity {
     type = "SystemAssigned"
@@ -87,9 +87,7 @@ resource "azurerm_app_service" "web_app" {
     "DOCKER_REGISTRY_SERVER_PASSWORD"     = var.acr_admin_pass
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
     "WEBSITES_PORT"                       = "3000"
-    # ✅ Corrected usage of Key Vault secret URI
-    "EMAIL_API_KEY_SETTING" = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
-
+    "EMAIL_API_KEY_SETTING"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
   }
 
   site_config {
@@ -100,17 +98,17 @@ resource "azurerm_app_service" "web_app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# Give App Access to Key Vault
+# Key Vault Access for Web App
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = azurerm_app_service.web_app.identity[0].tenant_id
-  object_id    = azurerm_app_service.web_app.identity[0].principal_id
+  tenant_id    = azurerm_linux_web_app.web_app.identity[0].tenant_id
+  object_id    = azurerm_linux_web_app.web_app.identity[0].principal_id
 
   secret_permissions = ["Get"]
 }
 
-# Output Web URL
+# ✅ Corrected output attribute
 output "web_app_url" {
-  value       = azurerm_app_service.web_app.default_host_name
+  value       = azurerm_linux_web_app.web_app.default_hostname
   description = "Public URL of the web app"
 }
