@@ -58,20 +58,20 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# ✅ NEW: Container App Environment
+# ✅ Container App Environment
 resource "azurerm_container_app_environment" "env" {
   name                = "${var.web_app_name}-env"
   location            = var.location
   resource_group_name = var.resource_group_name
 }
 
-# ✅ NEW: Container App (replacing Linux Web App)
+# ✅ Container App
 resource "azurerm_container_app" "app" {
-  name                         = var.web_app_name
+  name                          = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = var.resource_group_name
-  location                     = var.location
-  revision_mode                = "Single"
+  resource_group_name           = var.resource_group_name
+  location                      = var.location
+  revision_mode                 = "Single"
 
   identity {
     type = "SystemAssigned"
@@ -100,12 +100,17 @@ resource "azurerm_container_app" "app" {
     external_enabled = true
     target_port      = 3000
     transport        = "auto"
+
+    traffic_weight {
+      percentage      = 100
+      latest_revision = true
+    }
   }
 
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ✅ NEW: Grant access to secrets
+# Access policy for app to read secrets
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
@@ -114,7 +119,7 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   secret_permissions = ["Get"]
 }
 
-# ✅ Corrected output
+# Output the URL of the container app
 output "container_app_url" {
   value       = azurerm_container_app.app.latest_revision_fqdn
   description = "Public URL of the deployed container app"
