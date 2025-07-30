@@ -68,13 +68,19 @@ resource "azurerm_container_app_environment" "env" {
 # ✅ Container App
 resource "azurerm_container_app" "app" {
   name                          = var.web_app_name
-  container_app_environment_id = azurerm_container_app_environment.env.id
+  container_app_environment_id  = azurerm_container_app_environment.env.id
   resource_group_name           = var.resource_group_name
   location                      = var.location
   revision_mode                 = "Single"
 
   identity {
     type = "SystemAssigned"
+  }
+
+  # ✅ Corrected: secret block is at top level
+  secret {
+    name  = "EMAIL-API-KEY"
+    value = azurerm_key_vault_secret.api_key.value
   }
 
   template {
@@ -89,13 +95,9 @@ resource "azurerm_container_app" "app" {
         secret_name = "EMAIL-API-KEY"
       }
     }
-
-    secret {
-      name  = "EMAIL-API-KEY"
-      value = azurerm_key_vault_secret.api_key.value
-    }
   }
 
+  # ✅ Required for Single revision mode: ingress + traffic_weight
   ingress {
     external_enabled = true
     target_port      = 3000
@@ -110,7 +112,7 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# Access policy for app to read secrets
+# ✅ Access policy for container app to fetch secret
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
@@ -119,7 +121,6 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   secret_permissions = ["Get"]
 }
 
-# Output the URL of the container app
 output "container_app_url" {
   value       = azurerm_container_app.app.latest_revision_fqdn
   description = "Public URL of the deployed container app"
