@@ -88,7 +88,8 @@ resource "azurerm_app_service" "web_app" {
     "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
     "WEBSITES_PORT"                       = "3000"
     # ✅ Corrected usage of Key Vault secret URI
-    "EMAIL_API_KEY_SETTING"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.secret_id})"
+    "EMAIL_API_KEY_SETTING" = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
+
   }
 
   site_config {
