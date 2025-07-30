@@ -1,5 +1,9 @@
 provider "azurerm" {
-  features {}
+  features {
+    container_app {
+      auto_upgrade_minor_version = true
+    }
+  }
 }
 
 data "azurerm_client_config" "current" {}
@@ -23,7 +27,6 @@ variable "acr_admin_pass" {
 }
 
 variable "container_image" { type = string }
-variable "app_service_plan_name" { type = string }
 
 # ACR
 resource "azurerm_container_registry" "acr" {
@@ -44,7 +47,6 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
 }
 
-# Terraform access to Key Vault
 resource "azurerm_key_vault_access_policy" "terraform_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -53,7 +55,6 @@ resource "azurerm_key_vault_access_policy" "terraform_policy" {
   secret_permissions = ["Get", "Set", "List"]
 }
 
-# Store API Key
 resource "azurerm_key_vault_secret" "api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
@@ -61,54 +62,64 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# App Service Plan
-resource "azurerm_service_plan" "app_plan" {
-  name                = var.app_service_plan_name
+# ✅ NEW: Container App Environment
+resource "azurerm_container_app_environment" "env" {
+  name                = "${var.web_app_name}-env"
   location            = var.location
   resource_group_name = var.resource_group_name
-  os_type             = "Linux"
-  sku_name            = "F1"
 }
 
-# ✅ Updated to use azurerm_linux_web_app instead of deprecated azurerm_app_service
-resource "azurerm_linux_web_app" "web_app" {
-  name                = var.web_app_name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  service_plan_id     = azurerm_service_plan.app_plan.id
+# ✅ NEW: Container App (replacing Linux Web App)
+resource "azurerm_container_app" "app" {
+  name                         = var.web_app_name
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  resource_group_name          = var.resource_group_name
+  location                     = var.location
+  revision_mode                = "Single"
 
   identity {
     type = "SystemAssigned"
   }
 
-  app_settings = {
-    "DOCKER_REGISTRY_SERVER_URL"          = azurerm_container_registry.acr.login_server
-    "DOCKER_REGISTRY_SERVER_USERNAME"     = var.acr_admin_user
-    "DOCKER_REGISTRY_SERVER_PASSWORD"     = var.acr_admin_pass
-    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
-    "WEBSITES_PORT"                       = "3000"
-    "EMAIL_API_KEY_SETTING"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.api_key.id})"
+  template {
+    container {
+      name   = "contact-saver"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+      cpu    = 0.5
+      memory = "1.0Gi"
+
+      env {
+        name        = "EMAIL_API_KEY_SETTING"
+        secret_name = "EMAIL-API-KEY"
+      }
+    }
+
+    secret {
+      name  = "EMAIL-API-KEY"
+      value = azurerm_key_vault_secret.api_key.value
+    }
   }
 
-  site_config {
-    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-    always_on        = true
+  ingress {
+    external_enabled = true
+    target_port      = 3000
+    transport        = "auto"
   }
 
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# Key Vault Access for Web App
+# ✅ NEW: Grant access to secrets
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = azurerm_linux_web_app.web_app.identity[0].tenant_id
-  object_id    = azurerm_linux_web_app.web_app.identity[0].principal_id
+  tenant_id    = azurerm_container_app.app.identity[0].tenant_id
+  object_id    = azurerm_container_app.app.identity[0].principal_id
 
   secret_permissions = ["Get"]
 }
 
-# ✅ Corrected output attribute
-output "web_app_url" {
-  value       = azurerm_linux_web_app.web_app.default_hostname
-  description = "Public URL of the web app"
+# ✅ Corrected output
+output "container_app_url" {
+  value       = azurerm_container_app.app.latest_revision_fqdn
+  description = "Public URL of the deployed container app"
 }
