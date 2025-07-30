@@ -49,7 +49,7 @@ stages:
           vmImage: 'ubuntu-latest'
         steps:
 
-          # ✅ Fetch secrets from Key Vault (No envVariableMappings)
+          # ✅ Fetch secrets from Key Vault (  envVariableMappings)
           - task: AzureKeyVault@2
             displayName: Fetch Secrets from Key Vault
             inputs:

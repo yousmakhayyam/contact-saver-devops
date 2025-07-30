@@ -77,7 +77,7 @@ resource "azurerm_container_app" "app" {
   }
 
   secret {
-    name  = "EMAIL-API-KEY"
+    name  = "email-api-key" 
     value = azurerm_key_vault_secret.api_key.value
   }
 
@@ -90,7 +90,7 @@ resource "azurerm_container_app" "app" {
 
       env {
         name        = "EMAIL_API_KEY_SETTING"
-        secret_name = "EMAIL-API-KEY"
+        secret_name = "email-api-key" 
       }
     }
   }
