@@ -30,7 +30,7 @@ stages:
           - task: Docker@2
             displayName: Build and Push Docker Image
             inputs:
-              containerRegistry: 'acr-connection1' # Your ACR service connection name 
+              containerRegistry: 'acr-connection1'
               repository: '$(containerImage)'
               command: 'buildAndPush'
               Dockerfile: '$(dockerfilePath)/Dockerfile'
@@ -86,12 +86,12 @@ stages:
                 location=East US
                 acr_name=$(acrName)
                 web_app_name=contact-saver-app
-                key_vault_name=yousma-kv
-                email_api_key=$(EMAIL-API-KEY)
+                key_vault_name=contactkv123
+                email_api_key=$(EMAIL_API_KEY)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
-                acr_admin_user=$(acr-admin-user)
-                acr_admin_pass=$(acr-admin-pass)
+                acr_admin_user=$(ACR_ADMIN_USER)
+                acr_admin_pass=$(ACR_ADMIN_PASS)
 
           - task: TerraformTaskV4@4
             displayName: Terraform Apply
@@ -106,11 +106,11 @@ stages:
                 acr_name=$(acrName)
                 web_app_name=contact-saver-app
                 key_vault_name=contactkv123
-                email_api_key=$(EMAIL-API-KEY)
+                email_api_key=$(EMAIL_API_KEY)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
-                acr_admin_user=$(acr-admin-user)
-                acr_admin_pass=$(acr-admin-pass)
+                acr_admin_user=$(ACR_ADMIN_USER)
+                acr_admin_pass=$(ACR_ADMIN_PASS)
               ensureBackend: true
               commandOptions: '-auto-approve'
               allowTelemetryCollection: false
