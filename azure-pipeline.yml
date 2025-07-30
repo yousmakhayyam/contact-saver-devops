@@ -30,7 +30,7 @@ stages:
           - task: Docker@2
             displayName: Build and Push Docker Image
             inputs:
-              containerRegistry: 'acr-connection1' # ACR service connection
+              containerRegistry: 'acr-connection1' # Your ACR service connection name
               repository: '$(containerImage)'
               command: 'buildAndPush'
               Dockerfile: '$(dockerfilePath)/Dockerfile'
@@ -48,6 +48,15 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
+
+          - task: AzureKeyVault@2
+            displayName: Fetch Secrets from Key Vault
+            inputs:
+              azureSubscription: 'Azure-Yousma-Connection'
+              KeyVaultName: 'contactkv123'
+              SecretsFilter: 'acr-admin-user,acr-admin-pass,EMAIL-API-KEY'
+              RunAsPreJob: true
+
           - task: TerraformInstaller@1
             displayName: Install Terraform
             inputs:
@@ -78,11 +87,11 @@ stages:
                 acr_name=$(acrName)
                 web_app_name=contact-saver-app
                 key_vault_name=yousma-kv
-                email_api_key=$(email_api_key)
+                email_api_key=$(EMAIL-API-KEY)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
-                acr_admin_user=$(acr_admin_user)
-                acr_admin_pass=$(acr_admin_pass)
+                acr_admin_user=$(acr-admin-user)
+                acr_admin_pass=$(acr-admin-pass)
 
           - task: TerraformTaskV4@4
             displayName: Terraform Apply
@@ -97,11 +106,11 @@ stages:
                 acr_name=$(acrName)
                 web_app_name=contact-saver-app
                 key_vault_name=yousma-kv
-                email_api_key=$(email_api_key)
+                email_api_key=$(EMAIL-API-KEY)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
-                acr_admin_user=$(acr_admin_user)
-                acr_admin_pass=$(acr_admin_pass)
+                acr_admin_user=$(acr-admin-user)
+                acr_admin_pass=$(acr-admin-pass)
               ensureBackend: true
               commandOptions: '-auto-approve'
               allowTelemetryCollection: false
