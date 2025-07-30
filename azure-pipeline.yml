@@ -105,7 +105,7 @@ stages:
                 location=East US
                 acr_name=$(acrName)
                 web_app_name=contact-saver-app
-                key_vault_name=yousma-kv
+                key_vault_name=contactkv123
                 email_api_key=$(EMAIL-API-KEY)
                 container_image=$(containerImage)
                 app_service_plan_name=contact-plan
