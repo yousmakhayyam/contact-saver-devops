@@ -34,6 +34,12 @@ variable "acr_admin_pass" {
 
 variable "container_image" { type = string }
 
+# ✅ Existing Container App Environment (Use instead of create)
+data "azurerm_container_app_environment" "env" {
+  name                = "contact-webapp-123-env" # ✅ already created by you
+  resource_group_name = var.resource_group_name
+}
+
 # ACR
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
@@ -68,19 +74,12 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# ✅ Container App Environment
-resource "azurerm_container_app_environment" "env" {
-  name                = "${var.web_app_name}-env"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-}
-
 # ✅ Container App
 resource "azurerm_container_app" "app" {
-  name                          = var.web_app_name
-  container_app_environment_id  = azurerm_container_app_environment.env.id
-  resource_group_name           = var.resource_group_name
-  revision_mode                 = "Single"
+  name                         = var.web_app_name
+  container_app_environment_id = data.azurerm_container_app_environment.env.id
+  resource_group_name          = var.resource_group_name
+  revision_mode                = "Single"
 
   identity {
     type = "SystemAssigned"
@@ -119,7 +118,7 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ✅ Delay role assignment using null_resource to break cycle
+# ✅ Delay for Identity Role Assignments
 resource "null_resource" "app_identity_ready" {
   depends_on = [azurerm_container_app.app]
 }
