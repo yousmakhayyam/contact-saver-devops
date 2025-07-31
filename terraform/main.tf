@@ -3,6 +3,15 @@ provider "azurerm" {
   subscription_id = "adc9f320-e56e-45b1-845e-c73484745fc8"
 }
 
+terraform {
+  backend "azurerm" {
+    resource_group_name   = "yousma-rg"
+    storage_account_name  = "yousmastorage"
+    container_name        = "tfstate"
+    key                   = "terraform.tfstate"
+  }
+}
+
 data "azurerm_client_config" "current" {}
 
 variable "resource_group_name" { type = string }
