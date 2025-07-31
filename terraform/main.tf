@@ -36,10 +36,16 @@ variable "email_api_key" {
 }
 variable "container_image" { type = string }
 
-resource "azurerm_container_registry" "acr" {
-  name                = var.acr_name
+resource "azurerm_container_app_environment" "env" {
+  name                = "contact-env"
   location            = var.location
   resource_group_name = var.resource_group_name
+}
+
+resource "azurerm_container_registry" "acr" {
+  name                = var.acr_name
+  resource_group_name = var.resource_group_name
+  location            = var.location
   sku                 = "Basic"
   admin_enabled       = false
 }
@@ -65,12 +71,6 @@ resource "azurerm_key_vault_secret" "api_key" {
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
-}
-
-resource "azurerm_container_app_environment" "env" {
-  name                = "contact-env"
-  location            = var.location
-  resource_group_name = var.resource_group_name
 }
 
 resource "azurerm_container_app" "app" {
@@ -133,11 +133,9 @@ resource "azapi_update_resource" "patch_container_app" {
         secrets = [
           {
             name = "email-api-key"
-            keyVaultReference = {
-              secretName = "EMAIL-API-KEY"
-              identity = {
-                useSystemAssignedIdentity = true
-              }
+            keyVaultUrl = azurerm_key_vault_secret.api_key.id
+            identity = {
+              useSystemAssignedIdentity = true
             }
           }
         ]
