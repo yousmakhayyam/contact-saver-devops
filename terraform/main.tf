@@ -15,10 +15,10 @@ terraform {
 data "azurerm_client_config" "current" {}
 
 variable "resource_group_name" { type = string }
-variable "location" { type = string }
-variable "acr_name" { type = string }
-variable "web_app_name" { type = string }
-variable "key_vault_name" { type = string }
+variable "location"            { type = string }
+variable "acr_name"            { type = string }
+variable "web_app_name"        { type = string }
+variable "key_vault_name"      { type = string }
 
 variable "email_api_key" {
   type      = string
@@ -75,7 +75,7 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-# ✅ Container App (location removed here)
+# ✅ Container App
 resource "azurerm_container_app" "app" {
   name                          = var.web_app_name
   container_app_environment_id  = azurerm_container_app_environment.env.id
@@ -87,7 +87,7 @@ resource "azurerm_container_app" "app" {
   }
 
   secret {
-    name  = "email-api-key" 
+    name  = "email-api-key"
     value = azurerm_key_vault_secret.api_key.value
   }
 
@@ -100,7 +100,7 @@ resource "azurerm_container_app" "app" {
 
       env {
         name        = "EMAIL_API_KEY_SETTING"
-        secret_name = "email-api-key" 
+        secret_name = "email-api-key"
       }
     }
   }
@@ -116,27 +116,30 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-   depends_on = [
-    azurerm_key_vault_secret.api_key,
-    azurerm_role_assignment.acr_pull_permission
-  ]
-
+  depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# Access Policy for Container App Identity
+# ✅ Delay role assignment using null_resource to break cycle
+resource "null_resource" "app_identity_ready" {
+  depends_on = [azurerm_container_app.app]
+}
+
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
   object_id    = azurerm_container_app.app.identity[0].principal_id
 
   secret_permissions = ["Get"]
+
+  depends_on = [null_resource.app_identity_ready]
 }
 
-# Allow Container App to pull from ACR
 resource "azurerm_role_assignment" "acr_pull_permission" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
+
+  depends_on = [null_resource.app_identity_ready]
 }
 
 output "container_app_url" {
