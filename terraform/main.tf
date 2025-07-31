@@ -14,6 +14,7 @@ terraform {
 
 data "azurerm_client_config" "current" {}
 
+# 🔧 Variables
 variable "resource_group_name" { type = string }
 variable "location"            { type = string }
 variable "acr_name"            { type = string }
@@ -25,16 +26,9 @@ variable "email_api_key" {
   sensitive = true
 }
 
-variable "acr_admin_user" { type = string }
-
-variable "acr_admin_pass" {
-  type      = string
-  sensitive = true
-}
-
 variable "container_image" { type = string }
 
-# ✅ CREATE Container App Environment
+# ✅ Container App Environment
 resource "azurerm_container_app_environment" "env" {
   name                = "contact-webapp-123-env"
   location            = var.location
@@ -45,16 +39,16 @@ resource "azurerm_container_app_environment" "env" {
   }
 }
 
-# ACR
+# ✅ ACR with admin disabled (identity-based access only)
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = "Basic"
-  admin_enabled       = true
+  admin_enabled       = false
 }
 
-# Key Vault
+# ✅ Key Vault & Secrets
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -123,7 +117,7 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ✅ Delay for Identity Role Assignments
+# ✅ Grant Container App Identity access to ACR and Key Vault
 resource "null_resource" "app_identity_ready" {
   depends_on = [azurerm_container_app.app]
 }
