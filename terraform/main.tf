@@ -14,7 +14,6 @@ terraform {
 
 data "azurerm_client_config" "current" {}
 
-# 🔧 Variables
 variable "resource_group_name" { type = string }
 variable "location"            { type = string }
 variable "acr_name"            { type = string }
@@ -28,7 +27,6 @@ variable "email_api_key" {
 
 variable "container_image" { type = string }
 
-# ✅ Container App Environment
 resource "azurerm_container_app_environment" "env" {
   name                = "contact-webapp-123-env"
   location            = var.location
@@ -39,7 +37,6 @@ resource "azurerm_container_app_environment" "env" {
   }
 }
 
-# ✅ ACR with admin disabled (identity-based access only)
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
@@ -48,7 +45,6 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = false
 }
 
-# ✅ Key Vault & Secrets
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -73,7 +69,7 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# ✅ Container App
+# ✅ Step 1: Create app WITHOUT image
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -92,7 +88,7 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "contact-saver"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+      image  = "busybox" # Dummy image, replaced later
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -117,27 +113,43 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ✅ Grant Container App Identity access to ACR and Key Vault
-resource "null_resource" "app_identity_ready" {
-  depends_on = [azurerm_container_app.app]
-}
-
+# ✅ Step 2: Give app identity permissions
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
   object_id    = azurerm_container_app.app.identity[0].principal_id
 
   secret_permissions = ["Get"]
-
-  depends_on = [null_resource.app_identity_ready]
 }
 
 resource "azurerm_role_assignment" "acr_pull_permission" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
+}
 
-  depends_on = [null_resource.app_identity_ready]
+# ✅ Step 3: Patch container app to use real image AFTER identity & permission
+resource "azapi_update_resource" "patch_image" {
+  type        = "Microsoft.App/containerApps@2023-05-01"
+  resource_id = azurerm_container_app.app.id
+
+  body = jsonencode({
+    properties = {
+      template = {
+        containers = [
+          {
+            name  = "contact-saver"
+            image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+          }
+        ]
+      }
+    }
+  })
+
+  depends_on = [
+    azurerm_role_assignment.acr_pull_permission,
+    azurerm_key_vault_access_policy.app_policy
+  ]
 }
 
 output "container_app_url" {
