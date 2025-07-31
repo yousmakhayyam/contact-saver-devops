@@ -116,7 +116,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  depends_on = [azurerm_key_vault_secret.api_key]
+   depends_on = [
+    azurerm_key_vault_secret.api_key,
+    azurerm_role_assignment.acr_pull_permission
+  ]
+
 }
 
 # Access Policy for Container App Identity
