@@ -87,11 +87,11 @@ stages:
               allowTelemetryCollection: false
             env:
               TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: East US
+              TF_VAR_location: 'East US'
               TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: contact-saver-app
-              TF_VAR_key_vault_name: contactkv123
-              TF_VAR_email_api_key: $(EMAIL_API_KEY)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
           - task: TerraformTaskV4@4
@@ -108,9 +108,9 @@ stages:
               allowTelemetryCollection: false
             env:
               TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: East US
+              TF_VAR_location: 'East US'
               TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: contact-saver-app
-              TF_VAR_key_vault_name: contactkv123
-              TF_VAR_email_api_key: $(EMAIL_API_KEY)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)

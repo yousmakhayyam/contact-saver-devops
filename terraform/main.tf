@@ -135,9 +135,14 @@ resource "azapi_update_resource" "patch_app" {
         secrets = [
           {
             name = "email-api-key"
-            keyVaultUrl = azurerm_key_vault_secret.api_key.id
+            keyVaultReference = {
+              secretName = "EMAIL-API-KEY"
+              identity = {
+                useSystemAssignedIdentity = true
+              }
+            }
           }
-        ],
+        ]
         activeRevisionsMode = "Single"
       }
       template = {
@@ -147,8 +152,8 @@ resource "azapi_update_resource" "patch_app" {
             image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
             env = [
               {
-                name        = "EMAIL_API_KEY_SETTING"
-                secretRef   = "email-api-key"
+                name      = "EMAIL_API_KEY_SETTING"
+                secretRef = "email-api-key"
               }
             ]
           }
