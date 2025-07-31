@@ -30,12 +30,10 @@ variable "location"            { type = string }
 variable "acr_name"            { type = string }
 variable "web_app_name"        { type = string }
 variable "key_vault_name"      { type = string }
-
 variable "email_api_key" {
   type      = string
   sensitive = true
 }
-
 variable "container_image" { type = string }
 
 resource "azurerm_container_app_environment" "env" {
@@ -90,25 +88,12 @@ resource "azurerm_container_app" "app" {
     type = "SystemAssigned"
   }
 
-  secret {
-    name = "email-api-key"
-    key_vault_url = azurerm_key_vault_secret.api_key.id
-    identity {
-      use_system_assigned_identity = true
-    }
-  }
-
   template {
     container {
       name   = "contact-saver"
       image  = "busybox"
       cpu    = 0.5
       memory = "1.0Gi"
-
-      env {
-        name        = "EMAIL_API_KEY_SETTING"
-        secret_name = "email-api-key"
-      }
     }
   }
 
@@ -140,17 +125,32 @@ resource "azurerm_role_assignment" "acr_pull_permission" {
   principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
 
-resource "azapi_update_resource" "patch_image" {
+resource "azapi_update_resource" "patch_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
 
   body = jsonencode({
     properties = {
+      configuration = {
+        secrets = [
+          {
+            name = "email-api-key"
+            keyVaultUrl = azurerm_key_vault_secret.api_key.id
+          }
+        ],
+        activeRevisionsMode = "Single"
+      }
       template = {
         containers = [
           {
             name  = "contact-saver"
             image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+            env = [
+              {
+                name        = "EMAIL_API_KEY_SETTING"
+                secretRef   = "email-api-key"
+              }
+            ]
           }
         ]
       }
@@ -158,8 +158,9 @@ resource "azapi_update_resource" "patch_image" {
   })
 
   depends_on = [
-    azurerm_role_assignment.acr_pull_permission,
-    azurerm_key_vault_access_policy.app_policy
+    azurerm_container_app.app,
+    azurerm_key_vault_access_policy.app_policy,
+    azurerm_role_assignment.acr_pull_permission
   ]
 }
 
