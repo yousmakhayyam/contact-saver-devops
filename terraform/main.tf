@@ -91,8 +91,11 @@ resource "azurerm_container_app" "app" {
   }
 
   secret {
-    name  = "email-api-key"
-    value = azurerm_key_vault_secret.api_key.value
+    name = "email-api-key"
+    key_vault_url = azurerm_key_vault_secret.api_key.id
+    identity {
+      use_system_assigned_identity = true
+    }
   }
 
   template {
