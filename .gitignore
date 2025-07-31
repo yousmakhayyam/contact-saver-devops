@@ -1,0 +1,16 @@
+# Terraform directories
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Crash log
+crash.log
+
+# Terraform variable files (if they contain secrets)
+*.tfvars
+
+# Sensitive plan output (optional)
+*.tfplan
+
+# Optional: lock file (can be committed if you want consistent provider versions)
+.terraform.lock.hcl
