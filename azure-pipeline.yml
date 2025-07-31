@@ -94,7 +94,7 @@ stages:
               TF_VAR_email_api_key: $(EMAIL_API_KEY)
               TF_VAR_container_image: $(containerImage)
 
-          # ✅ Terraform Apply
+          # ✅ Terraform Apply please chal jana 
           - task: TerraformTaskV4@4
             displayName: Terraform Apply
             inputs:
