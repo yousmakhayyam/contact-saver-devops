@@ -34,10 +34,15 @@ variable "acr_admin_pass" {
 
 variable "container_image" { type = string }
 
-# ✅ Existing Container App Environment (Use instead of create)
-data "azurerm_container_app_environment" "env" {
-  name                = "contact-webapp-123-env" # ✅ already created by you
+# ✅ CREATE Container App Environment
+resource "azurerm_container_app_environment" "env" {
+  name                = "contact-webapp-123-env"
+  location            = var.location
   resource_group_name = var.resource_group_name
+
+  tags = {
+    environment = "production"
+  }
 }
 
 # ACR
@@ -77,7 +82,7 @@ resource "azurerm_key_vault_secret" "api_key" {
 # ✅ Container App
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
-  container_app_environment_id = data.azurerm_container_app_environment.env.id
+  container_app_environment_id = azurerm_container_app_environment.env.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
 

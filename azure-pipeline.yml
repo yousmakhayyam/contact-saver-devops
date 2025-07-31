@@ -93,7 +93,6 @@ stages:
               TF_VAR_key_vault_name: contactkv123
               TF_VAR_email_api_key: $(EMAIL_API_KEY)
               TF_VAR_container_image: $(containerImage)
-              TF_VAR_app_service_plan_name: contact-plan
               TF_VAR_acr_admin_user: $(ACR_ADMIN_USER)
               TF_VAR_acr_admin_pass: $(ACR_ADMIN_PASS)
 
@@ -118,6 +117,5 @@ stages:
               TF_VAR_key_vault_name: contactkv123
               TF_VAR_email_api_key: $(EMAIL_API_KEY)
               TF_VAR_container_image: $(containerImage)
-              TF_VAR_app_service_plan_name: contact-plan
               TF_VAR_acr_admin_user: $(ACR_ADMIN_USER)
               TF_VAR_acr_admin_pass: $(ACR_ADMIN_PASS)
