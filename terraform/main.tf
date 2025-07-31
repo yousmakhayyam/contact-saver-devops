@@ -133,10 +133,8 @@ resource "azapi_update_resource" "patch_container_app" {
         secrets = [
           {
             name = "email-api-key"
-            keyVaultUrl = azurerm_key_vault_secret.api_key.id
-            identity = {
-              useSystemAssignedIdentity = true
-            }
+            identity = "SystemAssigned"  # ✅ FIXED LINE
+            keyVaultUrl = azurerm_key_vault_secret.api_key.id  # ✅ Use URL directly
           }
         ]
         activeRevisionsMode = "Single"
