@@ -128,6 +128,13 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   secret_permissions = ["Get"]
 }
 
+# Allow Container App to pull from ACR
+resource "azurerm_role_assignment" "acr_pull_permission" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app.app.identity[0].principal_id
+}
+
 output "container_app_url" {
   value       = azurerm_container_app.app.latest_revision_fqdn
   description = "Public URL of the deployed container app"
