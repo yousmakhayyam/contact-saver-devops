@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = "~> 3.96.0"
     }
   }
 
@@ -21,6 +21,8 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
+# ---------------- VARIABLES ----------------
+
 variable "resource_group_name" { type = string }
 variable "location"            { type = string }
 variable "acr_name"            { type = string }
@@ -32,6 +34,14 @@ variable "email_api_key" {
 }
 variable "container_image" { type = string }
 
+# ---------------- RESOURCES ----------------
+
+resource "azurerm_container_app_environment" "env" {
+  name                = "contact-env"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
@@ -41,37 +51,26 @@ resource "azurerm_container_registry" "acr" {
 }
 
 resource "azurerm_key_vault" "kv" {
-  name                        = var.key_vault_name
-  location                    = var.location
-  resource_group_name         = var.resource_group_name
-  tenant_id                   = data.azurerm_client_config.current.tenant_id
-  sku_name                    = "standard"
-  purge_protection_enabled    = false
+  name                = var.key_vault_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
+  purge_protection_enabled = false
 }
 
-resource "azurerm_key_vault_access_policy" "terraform_policy" {
+resource "azurerm_key_vault_access_policy" "terraform" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
-
   secret_permissions = ["Get", "Set", "List"]
 }
 
-resource "azurerm_key_vault_secret" "api_key" {
+resource "azurerm_key_vault_secret" "email_api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
-  depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
-}
-
-resource "azurerm_container_app_environment" "env" {
-  name                = "contact-webapp-123-env"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-
-  tags = {
-    environment = "production"
-  }
+  depends_on   = [azurerm_key_vault_access_policy.terraform]
 }
 
 resource "azurerm_container_app" "app" {
@@ -84,21 +83,23 @@ resource "azurerm_container_app" "app" {
     type = "SystemAssigned"
   }
 
-  secret {
-    name = "email-api-key"
-    key_vault_secret_id = azurerm_key_vault_secret.api_key.id
-  }
-
   template {
     container {
       name   = "contact-saver"
       image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
       cpu    = 0.5
-      memory = "1.0Gi"
+      memory = "1Gi"
 
       env {
         name      = "EMAIL_API_KEY_SETTING"
         secret_name = "email-api-key"
+      }
+    }
+
+    secret {
+      name = "email-api-key"
+      key_vault_reference {
+        secret_name = azurerm_key_vault_secret.email_api_key.name
       }
     }
   }
@@ -114,22 +115,17 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  depends_on = [
-    azurerm_key_vault_secret.api_key,
-    azurerm_key_vault_access_policy.app_policy,
-    azurerm_role_assignment.acr_pull_permission
-  ]
+  depends_on = [azurerm_key_vault_secret.email_api_key]
 }
 
-resource "azurerm_key_vault_access_policy" "app_policy" {
+resource "azurerm_key_vault_access_policy" "app_identity_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
   object_id    = azurerm_container_app.app.identity[0].principal_id
-
   secret_permissions = ["Get"]
 }
 
-resource "azurerm_role_assignment" "acr_pull_permission" {
+resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
