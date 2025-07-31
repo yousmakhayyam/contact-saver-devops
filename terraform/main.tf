@@ -1,15 +1,26 @@
-provider "azurerm" {
-  features {}
-  subscription_id = "adc9f320-e56e-45b1-845e-c73484745fc8"
-}
-
 terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 1.12.0"
+    }
+  }
+
   backend "azurerm" {
     resource_group_name   = "yousma-rg"
     storage_account_name  = "yousmastorage"
     container_name        = "tfstate"
     key                   = "terraform.tfstate"
   }
+}
+
+provider "azurerm" {
+  features {}
+  subscription_id = "adc9f320-e56e-45b1-845e-c73484745fc8"
 }
 
 data "azurerm_client_config" "current" {}
@@ -69,12 +80,11 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
-# ✅ Step 1: Create app WITHOUT image
 resource "azurerm_container_app" "app" {
-  name                         = var.web_app_name
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = var.resource_group_name
-  revision_mode                = "Single"
+  name                          = var.web_app_name
+  container_app_environment_id  = azurerm_container_app_environment.env.id
+  resource_group_name           = var.resource_group_name
+  revision_mode                 = "Single"
 
   identity {
     type = "SystemAssigned"
@@ -88,7 +98,7 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "contact-saver"
-      image  = "busybox" # Dummy image, replaced later
+      image  = "busybox"
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -113,7 +123,6 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ✅ Step 2: Give app identity permissions
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
@@ -128,7 +137,6 @@ resource "azurerm_role_assignment" "acr_pull_permission" {
   principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
 
-# ✅ Step 3: Patch container app to use real image AFTER identity & permission
 resource "azapi_update_resource" "patch_image" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
