@@ -4,10 +4,6 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
-    azapi = {
-      source  = "Azure/azapi"
-      version = "~> 1.12.0"
-    }
   }
 
   backend "azurerm" {
@@ -35,16 +31,6 @@ variable "email_api_key" {
   sensitive = true
 }
 variable "container_image" { type = string }
-
-resource "azurerm_container_app_environment" "env" {
-  name                = "contact-webapp-123-env"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-
-  tags = {
-    environment = "production"
-  }
-}
 
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
@@ -78,22 +64,42 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
+resource "azurerm_container_app_environment" "env" {
+  name                = "contact-webapp-123-env"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  tags = {
+    environment = "production"
+  }
+}
+
 resource "azurerm_container_app" "app" {
-  name                          = var.web_app_name
-  container_app_environment_id  = azurerm_container_app_environment.env.id
-  resource_group_name           = var.resource_group_name
-  revision_mode                 = "Single"
+  name                         = var.web_app_name
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  resource_group_name          = var.resource_group_name
+  revision_mode                = "Single"
 
   identity {
     type = "SystemAssigned"
   }
 
+  secret {
+    name = "email-api-key"
+    key_vault_secret_id = azurerm_key_vault_secret.api_key.id
+  }
+
   template {
     container {
       name   = "contact-saver"
-      image  = "busybox"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
       cpu    = 0.5
       memory = "1.0Gi"
+
+      env {
+        name      = "EMAIL_API_KEY_SETTING"
+        secret_name = "email-api-key"
+      }
     }
   }
 
@@ -108,7 +114,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  depends_on = [azurerm_key_vault_secret.api_key]
+  depends_on = [
+    azurerm_key_vault_secret.api_key,
+    azurerm_key_vault_access_policy.app_policy,
+    azurerm_role_assignment.acr_pull_permission
+  ]
 }
 
 resource "azurerm_key_vault_access_policy" "app_policy" {
@@ -123,50 +133,6 @@ resource "azurerm_role_assignment" "acr_pull_permission" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
-}
-
-resource "azapi_update_resource" "patch_app" {
-  type        = "Microsoft.App/containerApps@2023-05-01"
-  resource_id = azurerm_container_app.app.id
-
-  body = jsonencode({
-    properties = {
-      configuration = {
-        secrets = [
-          {
-            name = "email-api-key"
-            keyVaultReference = {
-              secretName = "EMAIL-API-KEY"
-              identity = {
-                useSystemAssignedIdentity = true
-              }
-            }
-          }
-        ]
-        activeRevisionsMode = "Single"
-      }
-      template = {
-        containers = [
-          {
-            name  = "contact-saver"
-            image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-            env = [
-              {
-                name      = "EMAIL_API_KEY_SETTING"
-                secretRef = "email-api-key"
-              }
-            ]
-          }
-        ]
-      }
-    }
-  })
-
-  depends_on = [
-    azurerm_container_app.app,
-    azurerm_key_vault_access_policy.app_policy,
-    azurerm_role_assignment.acr_pull_permission
-  ]
 }
 
 output "container_app_url" {
