@@ -8,6 +8,10 @@ terraform {
       source  = "Azure/azapi"
       version = "~> 1.12.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.9.1"
+    }
   }
 
   backend "azurerm" {
@@ -123,6 +127,11 @@ resource "azurerm_role_assignment" "acr_pull" {
   principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
 
+resource "time_sleep" "wait_for_acr_role" {
+  depends_on = [azurerm_role_assignment.acr_pull]
+  create_duration = "30s"
+}
+
 resource "azapi_update_resource" "patch_container_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
@@ -133,8 +142,8 @@ resource "azapi_update_resource" "patch_container_app" {
         secrets = [
           {
             name = "email-api-key"
-            identity = "SystemAssigned"  # ✅ FIXED LINE
-            keyVaultUrl = azurerm_key_vault_secret.api_key.id  # ✅ Use URL directly
+            identity = "SystemAssigned"
+            keyVaultUrl = azurerm_key_vault_secret.api_key.id
           }
         ]
         activeRevisionsMode = "Single"
@@ -161,9 +170,8 @@ resource "azapi_update_resource" "patch_container_app" {
   })
 
   depends_on = [
-    azurerm_container_app.app,
-    azurerm_key_vault_access_policy.app_policy,
-    azurerm_role_assignment.acr_pull
+    time_sleep.wait_for_acr_role,
+    azurerm_key_vault_access_policy.app_policy
   ]
 }
 
