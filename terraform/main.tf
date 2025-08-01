@@ -90,12 +90,6 @@ resource "azurerm_container_app" "app" {
   identity {
     type = "SystemAssigned"
   }
-
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = "SystemAssigned"
-  }
-
   template {
     container {
       name   = "placeholder"
