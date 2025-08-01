@@ -134,7 +134,7 @@ resource "azurerm_role_assignment" "acr_pull" {
 
 resource "time_sleep" "wait_for_acr_role" {
   depends_on = [azurerm_role_assignment.acr_pull]
-  create_duration = "30s"
+  create_duration = "60s"
 }
 
 resource "azapi_update_resource" "patch_container_app" {
