@@ -122,6 +122,7 @@ resource "azurerm_container_app" "app" {
       }
     }
 
+    ## ✅ FIX: Move secret block here (inside template, NOT inside container)
     secret {
       name                = "email-api-key"
       identity            = azurerm_user_assigned_identity.ua_identity.id
