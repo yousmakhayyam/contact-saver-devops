@@ -1,42 +1,35 @@
 resource "azapi_update_resource" "patch_image_and_secret" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
-
-  body = jsonencode({
+  body        = jsonencode({
     properties = {
       template = {
         containers = [
           {
-            name  = "placeholder"
-            image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-            env = [
+            name  = "contact-saver"
+            image = "${azurerm_container_registry.acr.login_server}/contact-saver:latest"
+            env   = [
               {
-                name      = "EMAIL-API-KEY"
-                secretRef = "email-api-key"
+                name  = "EMAIL_API_KEY"
+                secretRef = "EMAIL-API-KEY"
               }
             ]
           }
         ]
+        scale = {
+          minReplicas = 1
+          maxReplicas = 1
+        }
       }
       configuration = {
         secrets = [
           {
-            name        = "email-api-key"
-            identity    = {
-              resourceId = azurerm_user_assigned_identity.ua_identity.id
-            }
-            # ❌ FIXED: Use data block instead of resource to prevent secret deletion
-            keyVaultUrl = data.azurerm_key_vault_secret.api_key.id
+            name  = "EMAIL-API-KEY"
+            value = var.email_api_key
           }
         ]
       }
     }
+    # ✅ REMOVE identity block completely unless it's a string Resource ID
   })
-
-  response_export_values = ["properties.configuration"]
-  depends_on = [
-    azurerm_container_app.app,
-    data.azurerm_key_vault_secret.api_key,
-    azurerm_user_assigned_identity.ua_identity
-  ]
 }
