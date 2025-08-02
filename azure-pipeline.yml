@@ -113,7 +113,7 @@ stages:
           # ✅ ADDED SLEEP BEFORE PATCH TO AVOID IDENTITY TIMING ISSUE
           - script: |
               echo "Waiting 3 minutes to allow ACR role assignment and identity propagation..."
-              sleep 180
+              sleep 300
             displayName: "🕒 Sleep before Patch Step"
 
           - task: TerraformTaskV4@4
