@@ -155,9 +155,6 @@ resource "azapi_update_resource" "patch_container_app" {
           keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
         }]
         activeRevisionsMode = "Single"
-        registries = [{
-          server = azurerm_container_registry.acr.login_server
-        }]
       }
       template = {
         containers = [{
