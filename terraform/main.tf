@@ -132,6 +132,14 @@ resource "time_sleep" "wait_for_identity" {
   create_duration = "90s"
 }
 
+resource "null_resource" "wait_for_azure" {
+  provisioner "local-exec" {
+    command = "echo '⏳ Waiting 2 mins for Azure to finish role propagation...' && sleep 120"
+  }
+
+  depends_on = [azurerm_role_assignment.acr_pull]
+}
+
 resource "azapi_update_resource" "patch_container_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
@@ -168,7 +176,7 @@ resource "azapi_update_resource" "patch_container_app" {
   })
 
   depends_on = [
-    time_sleep.wait_for_identity,
+    null_resource.wait_for_azure,
     azurerm_key_vault_access_policy.app_policy
   ]
 }

@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main #main branch 
+      - main #main 
 
 variables:
   - group: Azurecredentials
@@ -115,7 +115,7 @@ stages:
             inputs:
               provider: 'azurerm'
               command: 'apply'
-              commandOptions: '-auto-approve -target=azapi_update_resource.patch_container_app'
+              commandOptions: -auto-approve -target=null_resource.wait_for_azure -target=azapi_update_resource.patch_container_app
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
