@@ -111,10 +111,21 @@ resource "azurerm_container_app" "app" {
 
   template {
     container {
-      name   = "placeholder"
-      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+      name   = "contact-saver"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
       cpu    = 0.5
       memory = "1.0Gi"
+
+      env {
+        name        = "EMAIL_API_KEY"
+        secret_name = "email-api-key"
+      }
+    }
+
+    secret {
+      name                = "email-api-key"
+      identity            = azurerm_user_assigned_identity.ua_identity.id
+      key_vault_secret_id = azurerm_key_vault_secret.api_key.id
     }
   }
 
@@ -135,45 +146,9 @@ resource "azurerm_container_app" "app" {
 
   depends_on = [
     azurerm_user_assigned_identity.ua_identity,
-    azurerm_key_vault_secret.api_key
-  ]
-}
-
-resource "azapi_update_resource" "patch_container_app" {
-  type        = "Microsoft.App/containerApps@2023-05-01"
-  resource_id = azurerm_container_app.app.id
-
-  body = jsonencode({
-    properties = {
-      configuration = {
-        secrets = [ {
-          name        = "email-api-key"
-          identity    = azurerm_user_assigned_identity.ua_identity.id
-          keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
-        }]
-        activeRevisionsMode = "Single"
-      }
-      template = {
-        containers = [ {
-          name  = "contact-saver"
-          image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-          env = [ {
-            name      = "EMAIL_API_KEY"
-            secretRef = "email-api-key"
-          }]
-          resources = {
-            cpu    = 0.5
-            memory = "1.0Gi"
-          }
-        }]
-      }
-    }
-  })
-
-  depends_on = [
-    azurerm_role_assignment.acr_pull,
+    azurerm_key_vault_secret.api_key,
     azurerm_key_vault_access_policy.app_policy,
-    azurerm_container_app.app
+    azurerm_role_assignment.acr_pull
   ]
 }
 
