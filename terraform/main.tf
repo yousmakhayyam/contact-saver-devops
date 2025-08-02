@@ -97,7 +97,6 @@ resource "azurerm_role_assignment" "acr_pull" {
   role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
 }
-
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -111,22 +110,10 @@ resource "azurerm_container_app" "app" {
 
   template {
     container {
-      name   = "contact-saver"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+      name   = "placeholder"
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.5
       memory = "1.0Gi"
-
-      env {
-        name        = "EMAIL_API_KEY"
-        secret_name = "email-api-key"
-      }
-    }
-
-    ## ✅ FIX: Move secret block here (inside template, NOT inside container)
-    secret {
-      name                = "email-api-key"
-      identity            = azurerm_user_assigned_identity.ua_identity.id
-      key_vault_secret_id = azurerm_key_vault_secret.api_key.id
     }
   }
 
@@ -152,6 +139,7 @@ resource "azurerm_container_app" "app" {
     azurerm_role_assignment.acr_pull
   ]
 }
+
 
 output "container_app_url" {
   value = azurerm_container_app.app.latest_revision_fqdn
