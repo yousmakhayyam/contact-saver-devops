@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main #main branch pe push kro 
+      - main
 
 variables:
   - group: Azurecredentials
@@ -70,13 +70,14 @@ stages:
               backendAzureRmKey: 'terraform.tfstate'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
+          # Stage 1 - Only Container App (with dummy image)
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (Infra + Role)
+            displayName: Terraform Apply (Container App Infra)
             inputs:
               provider: 'azurerm'
               command: 'apply'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-auto-approve -target=azurerm_container_app.app -target=azurerm_role_assignment.acr_pull'
+              commandOptions: '-auto-approve -target=azurerm_container_app.app'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
               ensureBackend: true
@@ -90,8 +91,30 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
+          # Stage 2 - Assign Role (after identity is created)
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (Patch Image)
+            displayName: Terraform Apply (ACR Pull Role)
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              commandOptions: '-auto-approve -target=azurerm_role_assignment.acr_pull'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              runAzLogin: true
+              ensureBackend: true
+              installTerraform: false
+            env:
+              TF_VAR_resource_group_name: $(tfBackendRg)
+              TF_VAR_location: 'East US'
+              TF_VAR_acr_name: $(acrName)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
+              TF_VAR_container_image: $(containerImage)
+
+          # Stage 3 - Patch final image + secrets
+          - task: TerraformTaskV4@4
+            displayName: Terraform Apply (Patch Final Image)
             inputs:
               provider: 'azurerm'
               command: 'apply'
