@@ -70,6 +70,7 @@ stages:
               backendAzureRmKey: 'terraform.tfstate'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
+          # 1. Create Identity
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (User Assigned Identity)
             inputs:
@@ -90,6 +91,28 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
+          # 2. Assign ACR Pull + KV access
+          - task: TerraformTaskV4@4
+            displayName: Terraform Apply (ACR Pull Role + KeyVault Access)
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              commandOptions: '-auto-approve -target=azurerm_role_assignment.acr_pull -target=azurerm_key_vault_access_policy.app_policy'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              runAzLogin: true
+              ensureBackend: true
+              installTerraform: false
+            env:
+              TF_VAR_resource_group_name: $(tfBackendRg)
+              TF_VAR_location: 'East US'
+              TF_VAR_acr_name: $(acrName)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
+              TF_VAR_container_image: $(containerImage)
+
+          # 3. Deploy container app infra
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (Container App Infra)
             inputs:
@@ -110,26 +133,7 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
-          - task: TerraformTaskV4@4
-            displayName: Terraform Apply (ACR Pull Role)
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-auto-approve -target=azurerm_role_assignment.acr_pull'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              runAzLogin: true
-              ensureBackend: true
-              installTerraform: false
-            env:
-              TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: 'East US'
-              TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: 'contact-saver-app'
-              TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_email_api_key: $(EMAIL-API-KEY)
-              TF_VAR_container_image: $(containerImage)
-
+          # 4. Final patch
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (Patch Final Image)
             inputs:

@@ -85,6 +85,19 @@ resource "azurerm_user_assigned_identity" "ua_identity" {
   resource_group_name = var.resource_group_name
 }
 
+resource "azurerm_key_vault_access_policy" "app_policy" {
+  key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_user_assigned_identity.ua_identity.principal_id
+  secret_permissions = ["Get"]
+}
+
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
+}
+
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -120,20 +133,10 @@ resource "azurerm_container_app" "app" {
     environment = "production"
   }
 
-  depends_on = [azurerm_key_vault_secret.api_key]
-}
-
-resource "azurerm_key_vault_access_policy" "app_policy" {
-  key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_user_assigned_identity.ua_identity.principal_id
-  secret_permissions = ["Get"]
-}
-
-resource "azurerm_role_assignment" "acr_pull" {
-  scope                = azurerm_container_registry.acr.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
+  depends_on = [
+    azurerm_user_assigned_identity.ua_identity,
+    azurerm_key_vault_secret.api_key
+  ]
 }
 
 resource "azapi_update_resource" "patch_container_app" {
@@ -143,7 +146,7 @@ resource "azapi_update_resource" "patch_container_app" {
   body = jsonencode({
     properties = {
       configuration = {
-        secrets = [{
+        secrets = [ {
           name        = "email-api-key"
           identity    = azurerm_user_assigned_identity.ua_identity.id
           keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
@@ -151,10 +154,10 @@ resource "azapi_update_resource" "patch_container_app" {
         activeRevisionsMode = "Single"
       }
       template = {
-        containers = [{
+        containers = [ {
           name  = "contact-saver"
           image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-          env = [{
+          env = [ {
             name      = "EMAIL_API_KEY"
             secretRef = "email-api-key"
           }]
@@ -168,8 +171,9 @@ resource "azapi_update_resource" "patch_container_app" {
   })
 
   depends_on = [
+    azurerm_role_assignment.acr_pull,
     azurerm_key_vault_access_policy.app_policy,
-    azurerm_role_assignment.acr_pull
+    azurerm_container_app.app
   ]
 }
 
