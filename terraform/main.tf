@@ -84,6 +84,10 @@ resource "azurerm_container_app" "app" {
   container_app_environment_id = azurerm_container_app_environment.env.id
   resource_group_name          = var.resource_group_name
   revision_mode                = "Single"
+  registries = [{
+  server = azurerm_container_registry.acr.login_server
+}]
+
 
   identity {
     type = "SystemAssigned"
@@ -155,15 +159,9 @@ resource "azapi_update_resource" "patch_container_app" {
           keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
         }]
         activeRevisionsMode = "Single"
-        registries = [  # ✅ CORRECTED BLOCK
-          {
-            server = azurerm_container_registry.acr.login_server
-            identity = {
-              type       = "SystemAssigned"
-              resourceId = azurerm_container_app.app.id
-            }
-          }
-        ]
+        registries = [{
+          server = azurerm_container_registry.acr.login_server
+        }]
       }
       template = {
         containers = [{
@@ -187,6 +185,7 @@ resource "azapi_update_resource" "patch_container_app" {
     azurerm_key_vault_access_policy.app_policy
   ]
 }
+
 
 output "container_app_url" {
   value = azurerm_container_app.app.latest_revision_fqdn
