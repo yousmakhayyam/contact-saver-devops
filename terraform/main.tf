@@ -80,9 +80,7 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-# ... [NO CHANGES TO terraform, provider, variables, ACR, Key Vault, etc.]
-
-# Container App
+# Container App (initial placeholder image)
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -93,11 +91,10 @@ resource "azurerm_container_app" "app" {
     type = "SystemAssigned"
   }
 
-  # ✅ Use placeholder image — real image will be patched after permissions are ready
   template {
     container {
       name   = "contact-saver"
-      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" # placeholder
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.5
       memory = "1.0Gi"
     }
@@ -121,9 +118,28 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# ... [NO CHANGES TO Key Vault access policy or role assignment]
+# Key Vault access for App
+resource "azurerm_key_vault_access_policy" "app_policy" {
+  key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = azurerm_container_app.app.identity[0].tenant_id
+  object_id    = azurerm_container_app.app.identity[0].principal_id
+  secret_permissions = ["Get"]
+}
 
-# Patch the real container config (this stays the same — it's correct!)
+# ACR pull permission
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app.app.identity[0].principal_id
+}
+
+# Add delay for identity propagation (⬅️ FIXED!)
+resource "time_sleep" "wait_for_identity_propagation" {
+  depends_on = [azurerm_role_assignment.acr_pull]
+  create_duration = "60s"
+}
+
+# Patch Container App with correct image + secrets
 resource "azapi_update_resource" "patch_container_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
