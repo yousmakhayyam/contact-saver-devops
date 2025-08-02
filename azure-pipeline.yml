@@ -110,6 +110,12 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
+          # ✅ ADDED SLEEP BEFORE PATCH TO AVOID IDENTITY TIMING ISSUE
+          - script: |
+              echo "Waiting 3 minutes to allow ACR role assignment and identity propagation..."
+              sleep 180
+            displayName: "🕒 Sleep before Patch Step"
+
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (Patch Final Image)
             inputs:
