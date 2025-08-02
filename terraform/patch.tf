@@ -1,7 +1,6 @@
 resource "azapi_update_resource" "patch_image_and_secret" {
-  type      = "Microsoft.App/containerApps@2023-05-01"
-  name      = azurerm_container_app.app.name
-  parent_id = azurerm_container_app.app.id
+  type        = "Microsoft.App/containerApps@2023-05-01"
+  resource_id = azurerm_container_app.app.id
 
   body = jsonencode({
     properties = {
@@ -18,20 +17,13 @@ resource "azapi_update_resource" "patch_image_and_secret" {
             ]
           }
         ]
-        secrets = [
-          {
-            name         = "EMAIL-API-KEY"
-            identity     = azurerm_user_assigned_identity.ua_identity.id
-            keyVaultUrl  = azurerm_key_vault_secret.api_key.id
-          }
-        ]
       }
       configuration = {
         secrets = [
           {
-            name         = "EMAIL-API-KEY"
-            identity     = azurerm_user_assigned_identity.ua_identity.id
-            keyVaultUrl  = azurerm_key_vault_secret.api_key.id
+            name        = "EMAIL-API-KEY"
+            identity    = azurerm_user_assigned_identity.ua_identity.id
+            keyVaultUrl = azurerm_key_vault_secret.api_key.id
           }
         ]
       }
