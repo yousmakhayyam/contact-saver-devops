@@ -70,7 +70,6 @@ stages:
               backendAzureRmKey: 'terraform.tfstate'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-          # Stage 1 - Only Container App (with dummy image)
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (Container App Infra)
             inputs:
@@ -91,7 +90,6 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
-          # Stage 2 - Assign Role (after identity is created)
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (ACR Pull Role)
             inputs:
@@ -112,7 +110,6 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
-          # Stage 3 - Patch final image + secrets
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (Patch Final Image)
             inputs:
