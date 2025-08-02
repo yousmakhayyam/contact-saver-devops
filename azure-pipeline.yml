@@ -48,7 +48,6 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-
           - task: AzureKeyVault@2
             displayName: Fetch EMAIL-API-KEY from Key Vault
             inputs:

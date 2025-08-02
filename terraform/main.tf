@@ -80,7 +80,7 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-# Container App - use placeholder image first
+# Container App
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -90,10 +90,11 @@ resource "azurerm_container_app" "app" {
   identity {
     type = "SystemAssigned"
   }
+
   template {
     container {
-      name   = "placeholder"
-      image  = "busybox"
+      name   = "contact-saver"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
       cpu    = 0.5
       memory = "1.0Gi"
     }
