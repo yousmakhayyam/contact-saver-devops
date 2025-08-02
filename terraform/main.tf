@@ -63,14 +63,14 @@ resource "azurerm_key_vault_access_policy" "terraform_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
-  secret_permissions =  ["Get", "Set", "List", "Delete"]
+  secret_permissions =  ["Get", "Set", "List"]
 }
 
-resource "azurerm_key_vault_secret" "api_key" {
+# ❌ Removed the incorrect resource block that caused delete error
+# ✅ Replaced with a data block to only read the secret
+data "azurerm_key_vault_secret" "api_key" {
   name         = "email-api-key"
-  value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
-  depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
 resource "azurerm_container_app_environment" "env" {
@@ -97,6 +97,7 @@ resource "azurerm_role_assignment" "acr_pull" {
   role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
 }
+
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -134,12 +135,10 @@ resource "azurerm_container_app" "app" {
 
   depends_on = [
     azurerm_user_assigned_identity.ua_identity,
-    azurerm_key_vault_secret.api_key,
     azurerm_key_vault_access_policy.app_policy,
     azurerm_role_assignment.acr_pull
   ]
 }
-
 
 output "container_app_url" {
   value = azurerm_container_app.app.latest_revision_fqdn

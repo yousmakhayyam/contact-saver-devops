@@ -25,7 +25,8 @@ resource "azapi_update_resource" "patch_image_and_secret" {
             identity    = {
               resourceId = azurerm_user_assigned_identity.ua_identity.id
             }
-            keyVaultUrl = azurerm_key_vault_secret.api_key.id
+            # ❌ FIXED: Use data block instead of resource to prevent secret deletion
+            keyVaultUrl = data.azurerm_key_vault_secret.api_key.id
           }
         ]
       }
@@ -35,7 +36,7 @@ resource "azapi_update_resource" "patch_image_and_secret" {
   response_export_values = ["properties.configuration"]
   depends_on = [
     azurerm_container_app.app,
-    azurerm_key_vault_secret.api_key,
+    data.azurerm_key_vault_secret.api_key,
     azurerm_user_assigned_identity.ua_identity
   ]
 }
