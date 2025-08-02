@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main # main branch 
+      - main
 
 variables:
   - group: Azurecredentials
@@ -23,14 +23,13 @@ stages:
     displayName: Build and Push Docker Image to ACR
     jobs:
       - job: Build
-        timeoutInMinutes: 20
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - task: Docker@2
             displayName: Build and Push Docker Image
             inputs:
-              containerRegistry: 'acr-connection1'  # must match service connection name
+              containerRegistry: 'acr-connection1'
               repository: '$(containerImage)'
               command: 'buildAndPush'
               Dockerfile: '$(dockerfilePath)/Dockerfile'
@@ -43,8 +42,6 @@ stages:
     dependsOn: BuildAndPush
     jobs:
       - job: TerraformDeploy
-        displayName: Terraform Deploy Infra and Container App
-        timeoutInMinutes: 40
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -74,11 +71,12 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Plan
+            displayName: Terraform Apply (Create Infra + App + ACR + Role)
             inputs:
               provider: 'azurerm'
-              command: 'plan'
+              command: 'apply'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              commandOptions: '-auto-approve -target=azurerm_container_app.app -target=azurerm_role_assignment.acr_pull'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
               ensureBackend: true
@@ -93,13 +91,13 @@ stages:
               TF_VAR_container_image: $(containerImage)
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply
+            displayName: Terraform Apply (Patch Image + Secrets)
             inputs:
               provider: 'azurerm'
               command: 'apply'
+              commandOptions: '-auto-approve -target=azapi_update_resource.patch_container_app'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              commandOptions: '-auto-approve'
               runAzLogin: true
               ensureBackend: true
               installTerraform: false
