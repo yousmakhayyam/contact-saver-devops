@@ -155,10 +155,12 @@ resource "azapi_update_resource" "patch_container_app" {
           keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
         }]
         activeRevisionsMode = "Single"
-        registries = [{
-          server   = azurerm_container_registry.acr.login_server
-          identity = "SystemAssigned"
-        }]
+        registries = [  # ✅ FIXED block
+          {
+            server   = azurerm_container_registry.acr.login_server
+            identity = azurerm_container_app.app.identity[0].principal_id
+          }
+        ]
       }
       template = {
         containers = [{
