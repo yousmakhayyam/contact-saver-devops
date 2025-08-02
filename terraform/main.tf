@@ -89,7 +89,7 @@ resource "azurerm_container_app" "app" {
 
   template {
     container {
-      name   = "contact-saver"
+      name   = "placeholder"
       image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.5
       memory = "1.0Gi"
@@ -105,11 +105,6 @@ resource "azurerm_container_app" "app" {
       percentage      = 100
       latest_revision = true
     }
-  }
-
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = "SystemAssigned"
   }
 
   tags = {
@@ -150,6 +145,10 @@ resource "azapi_update_resource" "patch_container_app" {
           keyVaultUrl = azurerm_key_vault_secret.api_key.id
         }]
         activeRevisionsMode = "Single"
+        registries = [{
+          server   = azurerm_container_registry.acr.login_server
+          identity = "SystemAssigned"
+        }]
       }
       template = {
         containers = [{
