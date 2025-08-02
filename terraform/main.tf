@@ -80,7 +80,7 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-# Container App (initial placeholder image)
+# Container App (initial dummy image)
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -118,7 +118,7 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
-# Key Vault access for App
+# Key Vault access for app identity
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
@@ -126,20 +126,20 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   secret_permissions = ["Get"]
 }
 
-# ACR pull permission
+# ACR pull permission for app
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
 
-# Add delay for identity propagation (⬅️ FIXED!)
-resource "time_sleep" "wait_for_identity_propagation" {
+# Add wait to avoid race condition (identity propagation)
+resource "time_sleep" "wait_for_identity" {
   depends_on = [azurerm_role_assignment.acr_pull]
   create_duration = "60s"
 }
 
-# Patch Container App with correct image + secrets
+# Patch container app with image + secret env
 resource "azapi_update_resource" "patch_container_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
@@ -147,38 +147,32 @@ resource "azapi_update_resource" "patch_container_app" {
   body = jsonencode({
     properties = {
       configuration = {
-        secrets = [
-          {
-            name       = "email-api-key"
-            identity   = "SystemAssigned"
-            keyVaultUrl = azurerm_key_vault_secret.api_key.id
-          }
-        ]
+        secrets = [{
+          name        = "email-api-key"
+          identity    = "SystemAssigned"
+          keyVaultUrl = azurerm_key_vault_secret.api_key.id
+        }]
         activeRevisionsMode = "Single"
       }
       template = {
-        containers = [
-          {
-            name  = "contact-saver"
-            image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
-            env = [
-              {
-                name      = "EMAIL_API_KEY"
-                secretRef = "email-api-key"
-              }
-            ]
-            resources = {
-              cpu    = 0.5
-              memory = "1.0Gi"
-            }
+        containers = [{
+          name  = "contact-saver"
+          image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+          env = [{
+            name      = "EMAIL_API_KEY"
+            secretRef = "email-api-key"
+          }]
+          resources = {
+            cpu    = 0.5
+            memory = "1.0Gi"
           }
-        ]
+        }]
       }
     }
   })
 
   depends_on = [
-    time_sleep.wait_for_identity_propagation,
+    time_sleep.wait_for_identity,
     azurerm_key_vault_access_policy.app_policy
   ]
 }

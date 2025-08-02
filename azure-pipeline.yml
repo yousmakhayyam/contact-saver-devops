@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main #main 
+      - main
 
 variables:
   - group: Azurecredentials
@@ -71,7 +71,7 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (Create Infra + App + ACR + Role)
+            displayName: Terraform Apply (Infra + Role Assign)
             inputs:
               provider: 'azurerm'
               command: 'apply'
