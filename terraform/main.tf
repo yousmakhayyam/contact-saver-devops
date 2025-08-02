@@ -133,13 +133,13 @@ resource "azurerm_role_assignment" "acr_pull" {
   principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
 
-# Add wait to avoid race condition (identity propagation)
+# Sleep for propagation
 resource "time_sleep" "wait_for_identity" {
   depends_on = [azurerm_role_assignment.acr_pull]
   create_duration = "60s"
 }
 
-# Patch container app with image + secret env
+# Patch with image and secret
 resource "azapi_update_resource" "patch_container_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id

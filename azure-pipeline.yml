@@ -38,7 +38,7 @@ stages:
                 latest
 
   - stage: Deploy
-    displayName: Deploy Infrastructure and Container App
+    displayName: Deploy Infra and Patch Image
     dependsOn: BuildAndPush
     jobs:
       - job: TerraformDeploy
@@ -46,7 +46,7 @@ stages:
           vmImage: 'ubuntu-latest'
         steps:
           - task: AzureKeyVault@2
-            displayName: Fetch EMAIL-API-KEY from Key Vault
+            displayName: Fetch EMAIL-API-KEY
             inputs:
               azureSubscription: 'Azure-Yousma-Connection'
               KeyVaultName: 'contactkv123'
@@ -71,7 +71,7 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (Infra + Role Assign)
+            displayName: Terraform Apply (Infra + Role)
             inputs:
               provider: 'azurerm'
               command: 'apply'
@@ -91,7 +91,7 @@ stages:
               TF_VAR_container_image: $(containerImage)
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (Patch Image + Secrets)
+            displayName: Terraform Apply (Patch Image)
             inputs:
               provider: 'azurerm'
               command: 'apply'
