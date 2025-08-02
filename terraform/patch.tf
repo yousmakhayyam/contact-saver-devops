@@ -12,7 +12,7 @@ resource "azapi_update_resource" "patch_image_and_secret" {
             env = [
               {
                 name      = "EMAIL-API-KEY"
-                secretRef = "EMAIL-API-KEY"
+                secretRef = "email-api-key"
               }
             ]
           }
@@ -21,7 +21,7 @@ resource "azapi_update_resource" "patch_image_and_secret" {
       configuration = {
         secrets = [
           {
-            name        = "EMAIL-API-KEY"
+            name        = "email-api-key"
             identity    = azurerm_user_assigned_identity.ua_identity.id
             keyVaultUrl = azurerm_key_vault_secret.api_key.id
           }

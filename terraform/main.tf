@@ -67,7 +67,7 @@ resource "azurerm_key_vault_access_policy" "terraform_policy" {
 }
 
 resource "azurerm_key_vault_secret" "api_key" {
-  name         = "EMAIL-API-KEY"
+  name         = "email-api-key"
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
