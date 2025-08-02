@@ -7,6 +7,7 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 3000  # ✅ Fixed to match server.js
+# ✅ Fixed to match server.js
+EXPOSE 3000
 
 CMD ["node", "server.js"]
