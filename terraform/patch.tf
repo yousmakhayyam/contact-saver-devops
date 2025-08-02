@@ -11,7 +11,7 @@ resource "azapi_update_resource" "patch_image_and_secret" {
             env   = [
               {
                 name  = "EMAIL_API_KEY"
-                secretRef = "EMAIL-API-KEY"
+                secretRef = "email-api-key"
               }
             ]
           }

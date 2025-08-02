@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main # main  branch 
+      - main # main branch 
 
 variables:
   - group: Azurecredentials
