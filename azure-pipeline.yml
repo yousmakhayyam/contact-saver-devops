@@ -110,18 +110,38 @@ stages:
               TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: $(containerImage)
 
-          # ✅ ADDED SLEEP BEFORE PATCH TO AVOID IDENTITY TIMING ISSUE
+                     # ✅ ADDED SLEEP BEFORE PATCH TO AVOID IDENTITY TIMING ISSUE
           - script: |
-              echo "Waiting 3 minutes to allow ACR role assignment and identity propagation..."
+              echo "Waiting 5 minutes to allow ACR role assignment and identity propagation..."
               sleep 300
             displayName: "🕒 Sleep before Patch Step"
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Apply (Wait Null Resource)
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: -auto-approve -target=null_resource.wait_for_azure
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              runAzLogin: true
+              ensureBackend: true
+              installTerraform: false
+            env:
+              TF_VAR_resource_group_name: $(tfBackendRg)
+              TF_VAR_location: 'East US'
+              TF_VAR_acr_name: $(acrName)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
+              TF_VAR_container_image: $(containerImage)
 
           - task: TerraformTaskV4@4
             displayName: Terraform Apply (Patch Final Image)
             inputs:
               provider: 'azurerm'
               command: 'apply'
-              commandOptions: -auto-approve -target=null_resource.wait_for_azure -target=azapi_update_resource.patch_container_app
+              commandOptions: -auto-approve -target=azapi_update_resource.patch_container_app
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
