@@ -34,10 +34,12 @@ variable "location"            { type = string }
 variable "acr_name"            { type = string }
 variable "web_app_name"        { type = string }
 variable "key_vault_name"      { type = string }
+
 variable "email_api_key" {
   type      = string
   sensitive = true
 }
+
 variable "container_image" { type = string }
 
 resource "azurerm_container_registry" "acr" {
@@ -150,7 +152,7 @@ resource "azapi_update_resource" "patch_container_app" {
         secrets = [{
           name        = "email-api-key"
           identity    = "SystemAssigned"
-          keyVaultUrl = azurerm_key_vault_secret.api_key.id
+          keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
         }]
         activeRevisionsMode = "Single"
         registries = [{

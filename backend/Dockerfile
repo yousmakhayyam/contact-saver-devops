@@ -7,5 +7,6 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 80
+EXPOSE 3000  # ✅ Fixed to match server.js
+
 CMD ["node", "server.js"]
