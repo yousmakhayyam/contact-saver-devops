@@ -79,6 +79,12 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
+resource "azurerm_user_assigned_identity" "ua_identity" {
+  name                = "contact-saver-identity"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -86,7 +92,8 @@ resource "azurerm_container_app" "app" {
   revision_mode                = "Single"
 
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.ua_identity.id]
   }
 
   template {
@@ -118,28 +125,15 @@ resource "azurerm_container_app" "app" {
 
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = azurerm_container_app.app.identity[0].tenant_id
-  object_id    = azurerm_container_app.app.identity[0].principal_id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_user_assigned_identity.ua_identity.principal_id
   secret_permissions = ["Get"]
 }
 
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
-  principal_id         = azurerm_container_app.app.identity[0].principal_id
-}
-
-resource "time_sleep" "wait_for_identity" {
-  depends_on = [azurerm_role_assignment.acr_pull]
-  create_duration = "90s"
-}
-
-resource "null_resource" "wait_for_azure" {
-  provisioner "local-exec" {
-    command = "echo '⏳ Waiting 2 mins for Azure to finish role propagation...' && sleep 120"
-  }
-
-  depends_on = [azurerm_role_assignment.acr_pull]
+  principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
 }
 
 resource "azapi_update_resource" "patch_container_app" {
@@ -151,7 +145,7 @@ resource "azapi_update_resource" "patch_container_app" {
       configuration = {
         secrets = [{
           name        = "email-api-key"
-          identity    = "SystemAssigned"
+          identity    = azurerm_user_assigned_identity.ua_identity.id
           keyVaultUrl = azurerm_key_vault_secret.api_key.versionless_id
         }]
         activeRevisionsMode = "Single"
@@ -174,8 +168,8 @@ resource "azapi_update_resource" "patch_container_app" {
   })
 
   depends_on = [
-    null_resource.wait_for_azure,
-    azurerm_key_vault_access_policy.app_policy
+    azurerm_key_vault_access_policy.app_policy,
+    azurerm_role_assignment.acr_pull
   ]
 }
 

@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main #main branch
+      - main
 
 variables:
   - group: Azurecredentials
@@ -71,6 +71,26 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
+            displayName: Terraform Apply (User Assigned Identity)
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              commandOptions: '-auto-approve -target=azurerm_user_assigned_identity.ua_identity'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              runAzLogin: true
+              ensureBackend: true
+              installTerraform: false
+            env:
+              TF_VAR_resource_group_name: $(tfBackendRg)
+              TF_VAR_location: 'East US'
+              TF_VAR_acr_name: $(acrName)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
+              TF_VAR_container_image: $(containerImage)
+
+          - task: TerraformTaskV4@4
             displayName: Terraform Apply (Container App Infra)
             inputs:
               provider: 'azurerm'
@@ -97,32 +117,6 @@ stages:
               command: 'apply'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
               commandOptions: '-auto-approve -target=azurerm_role_assignment.acr_pull'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              runAzLogin: true
-              ensureBackend: true
-              installTerraform: false
-            env:
-              TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: 'East US'
-              TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: 'contact-saver-app'
-              TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_email_api_key: $(EMAIL-API-KEY)
-              TF_VAR_container_image: $(containerImage)
-
-                     # ✅ ADDED SLEEP BEFORE PATCH TO AVOID IDENTITY TIMING ISSUE
-          - script: |
-              echo "Waiting 3 minutes to allow ACR role assignment and identity propagation..."
-              sleep 180
-            displayName: "🕒 Sleep before Patch Step"
-
-          - task: TerraformTaskV4@4
-            displayName: Terraform Apply (Wait Null Resource)
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              commandOptions: -auto-approve -target=null_resource.wait_for_azure
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
               ensureBackend: true
