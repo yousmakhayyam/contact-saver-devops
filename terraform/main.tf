@@ -40,6 +40,7 @@ variable "email_api_key" {
 }
 variable "container_image" { type = string }
 
+# ACR
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
@@ -48,6 +49,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = false
 }
 
+# Key Vault
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -71,12 +73,14 @@ resource "azurerm_key_vault_secret" "api_key" {
   depends_on   = [azurerm_key_vault_access_policy.terraform_policy]
 }
 
+# Container App Environment
 resource "azurerm_container_app_environment" "env" {
   name                = "contact-env"
   location            = var.location
   resource_group_name = var.resource_group_name
 }
 
+# Container App
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -89,8 +93,8 @@ resource "azurerm_container_app" "app" {
 
   template {
     container {
-      name   = "placeholder"
-      image  = "nginx" # temporary image to avoid pull error
+      name   = "contact-saver"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
       cpu    = 0.5
       memory = "1.0Gi"
     }
@@ -100,6 +104,7 @@ resource "azurerm_container_app" "app" {
     external_enabled = true
     target_port      = 3000
     transport        = "auto"
+
     traffic_weight {
       percentage      = 100
       latest_revision = true
@@ -113,6 +118,7 @@ resource "azurerm_container_app" "app" {
   depends_on = [azurerm_key_vault_secret.api_key]
 }
 
+# Key Vault access for App
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = azurerm_container_app.app.identity[0].tenant_id
@@ -120,17 +126,20 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   secret_permissions = ["Get"]
 }
 
+# ACR pull permission
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
 
+# Delay to wait for role propagation
 resource "time_sleep" "wait_for_identity_propagation" {
   depends_on = [azurerm_role_assignment.acr_pull]
   create_duration = "60s"
 }
 
+# Patch the real container config
 resource "azapi_update_resource" "patch_container_app" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
@@ -145,6 +154,7 @@ resource "azapi_update_resource" "patch_container_app" {
             keyVaultUrl = azurerm_key_vault_secret.api_key.id
           }
         ]
+        activeRevisionsMode = "Single"
       }
       template = {
         containers = [
