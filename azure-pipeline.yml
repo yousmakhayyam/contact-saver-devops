@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - main # main  
+      - main
 
 variables:
   - group: Azurecredentials
@@ -88,7 +88,7 @@ stages:
               TF_VAR_web_app_name: 'contact-saver-app'
               TF_VAR_key_vault_name: 'contactkv123'
               TF_VAR_email_api_key: $(email-api-key)
-              TF_VAR_container_image: $(containerImage)
+              TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
 
           - script: sleep 30
             displayName: Wait for ACR Role Assignment
@@ -111,4 +111,4 @@ stages:
               TF_VAR_web_app_name: 'contact-saver-app'
               TF_VAR_key_vault_name: 'contactkv123'
               TF_VAR_email_api_key: $(email-api-key)
-              TF_VAR_container_image: $(containerImage)
+              TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'

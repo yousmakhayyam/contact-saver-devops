@@ -94,7 +94,7 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "backend"
-      image  = "placeholder" # patched later
+      image  = "placeholder"
       cpu    = 0.5
       memory = "1.0Gi"
     }
@@ -127,6 +127,7 @@ resource "time_sleep" "wait_for_identity" {
   depends_on = [azurerm_role_assignment.acr_pull]
   create_duration = "30s"
 }
+
 resource "azapi_update_resource" "patch_container_image" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
@@ -143,7 +144,7 @@ resource "azapi_update_resource" "patch_container_image" {
       template = {
         containers = [{
           name  = "backend"
-          image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+          image = "${var.container_image}:latest"
           resources = {
             cpu    = 0.5
             memory = "1.0Gi"
