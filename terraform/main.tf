@@ -97,7 +97,6 @@ resource "azurerm_role_assignment" "acr_pull" {
   role_definition_name = "AcrPull"
   principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
 }
-
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -111,10 +110,15 @@ resource "azurerm_container_app" "app" {
 
   template {
     container {
-      name   = "placeholder"
-      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+      name   = "backend"
+      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
       cpu    = 0.5
       memory = "1.0Gi"
+
+      env {
+        name  = "EMAIL_API_KEY"
+        value = data.azurerm_key_vault_secret.api_key.value
+      }
     }
   }
 
