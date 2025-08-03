@@ -10,8 +10,8 @@ resource "azapi_update_resource" "patch_image_and_secret" {
             image = "${azurerm_container_registry.acr.login_server}/contact-saver:latest"
             env   = [
               {
-                name  = "EMAIL_API_KEY"
-                secretRef = "email-api-key"
+                name      = "EMAIL_API_KEY"       # 👈 ENV VAR used by app
+                secretRef = "email-api-key"       # 👈 must match key vault secret name
               }
             ]
           }
@@ -24,12 +24,11 @@ resource "azapi_update_resource" "patch_image_and_secret" {
       configuration = {
         secrets = [
           {
-            name  = "EMAIL-API-KEY"
+            name  = "email-api-key"              # 👈 FIXED: all lowercase
             value = var.email_api_key
           }
         ]
       }
     }
-    # ✅ REMOVE identity block completely unless it's a string Resource ID
   })
 }
