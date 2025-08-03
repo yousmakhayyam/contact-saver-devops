@@ -87,7 +87,7 @@ stages:
               TF_VAR_acr_name: $(acrName)
               TF_VAR_web_app_name: 'contact-saver-app'
               TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_email_api_key: $(email-api-key)
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
 
           - script: sleep 30
@@ -110,5 +110,5 @@ stages:
               TF_VAR_acr_name: $(acrName)
               TF_VAR_web_app_name: 'contact-saver-app'
               TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_email_api_key: $(email-api-key)
+              TF_VAR_email_api_key: $(EMAIL-API-KEY)
               TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
