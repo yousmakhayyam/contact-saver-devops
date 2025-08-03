@@ -33,6 +33,7 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
+# Existing variables
 variable "resource_group_name" { type = string }
 variable "location"            { type = string }
 variable "acr_name"            { type = string }
@@ -153,7 +154,7 @@ resource "azapi_update_resource" "patch_container_image" {
             cpu    = 0.5
             memory = "1.0Gi"
           }
-          env = [{
+          env = [ {
             name = "EMAIL_API_KEY"
             secrets = {
               keyVaultUrl = "${azurerm_key_vault.kv.vault_uri}secrets/email-api-key"
