@@ -70,18 +70,23 @@ stages:
               backendAzureRmKey: 'terraform.tfstate'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-          - task: TerraformTaskV4@4
-            displayName: Terraform Apply - Container App Only
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-target=azurerm_container_app.app -auto-approve'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              runAzLogin: true
-              ensureBackend: true
-              installTerraform: false
+          # ✅ Fixed: Retry logic added for container app apply
+          - script: |
+              n=0
+              until [ $n -ge 3 ]
+              do
+                terraform apply -target=azurerm_container_app.app -auto-approve && break
+                echo "Terraform apply failed due to lock. Retrying in 20 seconds..."
+                sleep 20
+                n=$((n+1))
+              done
+            displayName: Terraform Apply - Container App Only (Retry on Lock)
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
             env:
+              ARM_CLIENT_ID: $(servicePrincipalId)
+              ARM_CLIENT_SECRET: $(servicePrincipalKey)
+              ARM_SUBSCRIPTION_ID: $(subscriptionId)
+              ARM_TENANT_ID: $(tenantId)
               TF_VAR_resource_group_name: $(tfBackendRg)
               TF_VAR_location: 'East US'
               TF_VAR_acr_name: $(acrName)
@@ -92,18 +97,23 @@ stages:
           - script: sleep 30
             displayName: Wait for ACR Role Assignment
 
-          - task: TerraformTaskV4@4
-            displayName: Terraform Apply Patch (Image + Registry + Secrets)
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-auto-approve'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              runAzLogin: true
-              ensureBackend: true
-              installTerraform: false
+          # ✅ Fixed: Retry logic added for patch apply
+          - script: |
+              n=0
+              until [ $n -ge 3 ]
+              do
+                terraform apply -auto-approve && break
+                echo "Terraform patch apply failed due to lock. Retrying in 20 seconds..."
+                sleep 20
+                n=$((n+1))
+              done
+            displayName: Terraform Apply Patch (Retry on Lock)
+            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
             env:
+              ARM_CLIENT_ID: $(servicePrincipalId)
+              ARM_CLIENT_SECRET: $(servicePrincipalKey)
+              ARM_SUBSCRIPTION_ID: $(subscriptionId)
+              ARM_TENANT_ID: $(tenantId)
               TF_VAR_resource_group_name: $(tfBackendRg)
               TF_VAR_location: 'East US'
               TF_VAR_acr_name: $(acrName)
