@@ -1,5 +1,3 @@
-# ✅ FIXED azure-pipelines.yaml - no errors, supports correct identity + patching
-
 trigger:
   branches:
     include:
@@ -73,7 +71,7 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply
+            displayName: Terraform Apply - Container App Only
             inputs:
               provider: 'azurerm'
               command: 'apply'
@@ -92,8 +90,11 @@ stages:
               TF_VAR_email_api_key: $(email-api-key)
               TF_VAR_container_image: $(containerImage)
 
+          - script: sleep 30
+            displayName: Wait for ACR Role Assignment
+
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply Patch
+            displayName: Terraform Apply Patch (Image + Registry + Secrets)
             inputs:
               provider: 'azurerm'
               command: 'apply'
@@ -103,3 +104,11 @@ stages:
               runAzLogin: true
               ensureBackend: true
               installTerraform: false
+            env:
+              TF_VAR_resource_group_name: $(tfBackendRg)
+              TF_VAR_location: 'East US'
+              TF_VAR_acr_name: $(acrName)
+              TF_VAR_web_app_name: 'contact-saver-app'
+              TF_VAR_key_vault_name: 'contactkv123'
+              TF_VAR_email_api_key: $(email-api-key)
+              TF_VAR_container_image: $(containerImage)

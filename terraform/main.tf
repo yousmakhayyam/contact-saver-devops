@@ -1,5 +1,3 @@
-# ✅ FIXED Terraform Code (main.tf) - Error-free with identity patching
-
 terraform {
   required_providers {
     azurerm = {
@@ -96,14 +94,9 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "backend"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+      image  = "placeholder" # patched later
       cpu    = 0.5
       memory = "1.0Gi"
-
-      env {
-        name  = "EMAIL_API_KEY"
-        value = data.azurerm_key_vault_secret.api_key.value
-      }
     }
   }
 
@@ -135,7 +128,7 @@ resource "time_sleep" "wait_for_identity" {
   create_duration = "30s"
 }
 
-resource "azapi_update_resource" "patch_registry" {
+resource "azapi_update_resource" "patch_container_image" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
   depends_on  = [time_sleep.wait_for_identity]
@@ -146,6 +139,20 @@ resource "azapi_update_resource" "patch_registry" {
         registries = [{
           server   = azurerm_container_registry.acr.login_server
           identity = "SystemAssigned"
+        }]
+      }
+      template = {
+        containers = [{
+          name  = "backend"
+          image = "${azurerm_container_registry.acr.login_server}/${var.container_image}:latest"
+          resources = {
+            cpu    = 0.5
+            memory = "1.0Gi"
+          }
+          env = [{
+            name  = "EMAIL_API_KEY"
+            value = data.azurerm_key_vault_secret.api_key.value
+          }]
         }]
       }
     }
