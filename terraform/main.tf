@@ -4,10 +4,6 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.96.0"
     }
-    azapi = {
-      source  = "Azure/azapi"
-      version = "~> 1.12.0"
-    }
     time = {
       source  = "hashicorp/time"
       version = "~> 0.9.1"
@@ -77,12 +73,6 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-resource "azurerm_role_assignment" "acr_pull" {
-  scope                = azurerm_container_registry.acr.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_container_app.app.identity[0].principal_id
-}
-
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -127,10 +117,16 @@ resource "azurerm_container_app" "app" {
     environment = "production"
   }
 
-  depends_on = [
-    azurerm_role_assignment.acr_pull,
-    azurerm_key_vault_access_policy.terraform_policy
-  ]
+  # Removed depends_on to fix cycle
+}
+
+resource "azurerm_role_assignment" "acr_pull" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app.app.identity[0].principal_id
+
+  # Explicitly delay evaluation
+  depends_on = [azurerm_container_app.app]
 }
 
 output "container_app_url" {
