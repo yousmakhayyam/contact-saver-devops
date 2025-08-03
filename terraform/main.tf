@@ -46,6 +46,7 @@ variable "email_api_key" {
 
 variable "container_image" { type = string }
 
+# Azure Container Registry
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
@@ -54,6 +55,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = false
 }
 
+# Azure Key Vault
 resource "azurerm_key_vault" "kv" {
   name                        = var.key_vault_name
   location                    = var.location
@@ -67,7 +69,8 @@ resource "azurerm_key_vault_access_policy" "terraform_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
-  secret_permissions =  ["Get", "Set", "List"]
+
+  secret_permissions = ["Get", "Set", "List"]
 }
 
 data "azurerm_key_vault_secret" "api_key" {
@@ -75,12 +78,14 @@ data "azurerm_key_vault_secret" "api_key" {
   key_vault_id = azurerm_key_vault.kv.id
 }
 
+# Container App Environment
 resource "azurerm_container_app_environment" "env" {
   name                = "contact-env"
   location            = var.location
   resource_group_name = var.resource_group_name
 }
 
+# Container App
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -117,11 +122,13 @@ resource "azurerm_container_app" "app" {
 
   lifecycle {
     ignore_changes = [
-      template[0].container[0].image
+      template[0].container[0].image,
+      registry
     ]
   }
 }
 
+# ACR Pull Permission
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
@@ -129,11 +136,13 @@ resource "azurerm_role_assignment" "acr_pull" {
   depends_on           = [azurerm_container_app.app]
 }
 
+# Wait for identity and role to propagate
 resource "time_sleep" "wait_for_identity" {
-  depends_on = [azurerm_role_assignment.acr_pull]
+  depends_on      = [azurerm_role_assignment.acr_pull]
   create_duration = "30s"
 }
 
+# Patch Container App with image and registry config
 resource "azapi_update_resource" "patch_container_image" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
@@ -165,6 +174,7 @@ resource "azapi_update_resource" "patch_container_image" {
   })
 }
 
+# Output URL
 output "container_app_url" {
   value = azurerm_container_app.app.latest_revision_fqdn
 }
