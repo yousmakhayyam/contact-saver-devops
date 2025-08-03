@@ -71,32 +71,12 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (User Assigned Identity)
-            inputs:
-              provider: 'azurerm'
-              command: 'apply'
-              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-auto-approve -target=azurerm_user_assigned_identity.ua_identity'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              runAzLogin: true
-              ensureBackend: true
-              installTerraform: false
-            env:
-              TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: 'East US'
-              TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: 'contact-saver-app'
-              TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_email_api_key: $(email-api-key)
-              TF_VAR_container_image: $(containerImage)
-
-          - task: TerraformTaskV4@4
             displayName: Terraform Apply (ACR Role + KV Policy)
             inputs:
               provider: 'azurerm'
               command: 'apply'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-auto-approve -target=azurerm_role_assignment.acr_pull -target=azurerm_key_vault_access_policy.app_policy'
+              commandOptions: '-auto-approve -target=azurerm_role_assignment.acr_pull -target=azurerm_key_vault_access_policy.terraform_policy'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
               ensureBackend: true

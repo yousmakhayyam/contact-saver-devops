@@ -66,8 +66,6 @@ resource "azurerm_key_vault_access_policy" "terraform_policy" {
   secret_permissions =  ["Get", "Set", "List"]
 }
 
-# ❌ Removed the incorrect resource block that caused delete error
-# ✅ Replaced with a data block to only read the secret
 data "azurerm_key_vault_secret" "api_key" {
   name         = "email-api-key"
   key_vault_id = azurerm_key_vault.kv.id
@@ -79,24 +77,12 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = var.resource_group_name
 }
 
-resource "azurerm_user_assigned_identity" "ua_identity" {
-  name                = "contact-saver-identity"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-}
-
-resource "azurerm_key_vault_access_policy" "app_policy" {
-  key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_user_assigned_identity.ua_identity.principal_id
-  secret_permissions = ["Get"]
-}
-
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
-  principal_id         = azurerm_user_assigned_identity.ua_identity.principal_id
+  principal_id         = azurerm_container_app.app.identity[0].principal_id
 }
+
 resource "azurerm_container_app" "app" {
   name                         = var.web_app_name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -104,8 +90,12 @@ resource "azurerm_container_app" "app" {
   revision_mode                = "Single"
 
   identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.ua_identity.id]
+    type = "SystemAssigned"
+  }
+
+  registry {
+    server   = azurerm_container_registry.acr.login_server
+    identity = "SystemAssigned"
   }
 
   template {
@@ -138,9 +128,8 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_user_assigned_identity.ua_identity,
-    azurerm_key_vault_access_policy.app_policy,
-    azurerm_role_assignment.acr_pull
+    azurerm_role_assignment.acr_pull,
+    azurerm_key_vault_access_policy.terraform_policy
   ]
 }
 
