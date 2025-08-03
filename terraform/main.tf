@@ -114,6 +114,12 @@ resource "azurerm_container_app" "app" {
   tags = {
     environment = "production"
   }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image
+    ]
+  }
 }
 
 resource "azurerm_role_assignment" "acr_pull" {
