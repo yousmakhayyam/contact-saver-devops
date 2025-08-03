@@ -88,6 +88,10 @@ stages:
               TF_VAR_web_app_name: 'contact-saver-app'
               TF_VAR_key_vault_name: 'contactkv123'
               TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
           - script: sleep 30
             displayName: Wait for ACR Role Assignment
@@ -110,3 +114,7 @@ stages:
               TF_VAR_web_app_name: 'contact-saver-app'
               TF_VAR_key_vault_name: 'contactkv123'
               TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
+              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(ARM_TENANT_ID)
