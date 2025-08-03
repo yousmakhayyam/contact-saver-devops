@@ -38,13 +38,7 @@ variable "location"            { type = string }
 variable "acr_name"            { type = string }
 variable "web_app_name"        { type = string }
 variable "key_vault_name"      { type = string }
-
-variable "email_api_key" {
-  type      = string
-  sensitive = true
-}
-
-variable "container_image" { type = string }
+variable "container_image"     { type = string }
 
 # Azure Container Registry
 resource "azurerm_container_registry" "acr" {
@@ -65,29 +59,12 @@ resource "azurerm_key_vault" "kv" {
   purge_protection_enabled    = false
 }
 
-# Terraform access to Key Vault
 resource "azurerm_key_vault_access_policy" "terraform_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = data.azurerm_client_config.current.object_id
 
   secret_permissions = ["Get", "Set", "List"]
-}
-
-# Give Container App identity access to the Key Vault
-resource "azurerm_key_vault_access_policy" "app_identity_policy" {
-  key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_container_app.app.identity[0].principal_id
-
-  secret_permissions = ["Get"]
-  depends_on         = [azurerm_container_app.app]
-}
-
-# Still retrieving the secret (optional but unused securely)
-data "azurerm_key_vault_secret" "api_key" {
-  name         = "email-api-key"
-  key_vault_id = azurerm_key_vault.kv.id
 }
 
 # Container App Environment
@@ -154,25 +131,22 @@ resource "time_sleep" "wait_for_identity" {
   create_duration = "30s"
 }
 
-# Patch Container App with image and registry config + Key Vault ref
+# Patch Container App with image and registry config + KV secret reference
 resource "azapi_update_resource" "patch_container_image" {
   type        = "Microsoft.App/containerApps@2023-05-01"
   resource_id = azurerm_container_app.app.id
-  depends_on  = [
-    time_sleep.wait_for_identity,
-    azurerm_key_vault_access_policy.app_identity_policy
-  ]
+  depends_on  = [time_sleep.wait_for_identity]
 
   body = jsonencode({
     properties = {
       configuration = {
-        registries = [{
+        registries = [ {
           server   = azurerm_container_registry.acr.login_server
           identity = "SystemAssigned"
         }]
       }
       template = {
-        containers = [{
+        containers = [ {
           name  = "backend"
           image = "${var.container_image}:latest"
           resources = {
@@ -180,8 +154,10 @@ resource "azapi_update_resource" "patch_container_image" {
             memory = "1.0Gi"
           }
           env = [{
-            name  = "EMAIL_API_KEY"
-            value = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault.kv.vault_uri}secrets/email-api-key/)"
+            name = "EMAIL_API_KEY"
+            secrets = {
+              keyVaultUrl = "${azurerm_key_vault.kv.vault_uri}secrets/email-api-key"
+            }
           }]
         }]
       }

@@ -46,7 +46,7 @@ stages:
           vmImage: 'ubuntu-latest'
         steps:
           - task: AzureKeyVault@2
-            displayName: Fetch EMAIL-API-KEY (optional now)
+            displayName: Fetch EMAIL-API-KEY
             inputs:
               azureSubscription: 'Azure-Yousma-Connection'
               KeyVaultName: 'contactkv123'
