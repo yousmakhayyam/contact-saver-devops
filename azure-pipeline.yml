@@ -70,7 +70,6 @@ stages:
               backendAzureRmKey: 'terraform.tfstate'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-          # ✅ Fixed: Retry logic added for container app apply
           - script: |
               n=0
               until [ $n -ge 3 ]
@@ -83,10 +82,6 @@ stages:
             displayName: Terraform Apply - Container App Only (Retry on Lock)
             workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
             env:
-              ARM_CLIENT_ID: $(servicePrincipalId)
-              ARM_CLIENT_SECRET: $(servicePrincipalKey)
-              ARM_SUBSCRIPTION_ID: $(subscriptionId)
-              ARM_TENANT_ID: $(tenantId)
               TF_VAR_resource_group_name: $(tfBackendRg)
               TF_VAR_location: 'East US'
               TF_VAR_acr_name: $(acrName)
@@ -97,7 +92,6 @@ stages:
           - script: sleep 30
             displayName: Wait for ACR Role Assignment
 
-          # ✅ Fixed: Retry logic added for patch apply
           - script: |
               n=0
               until [ $n -ge 3 ]
@@ -110,10 +104,6 @@ stages:
             displayName: Terraform Apply Patch (Retry on Lock)
             workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
             env:
-              ARM_CLIENT_ID: $(servicePrincipalId)
-              ARM_CLIENT_SECRET: $(servicePrincipalKey)
-              ARM_SUBSCRIPTION_ID: $(subscriptionId)
-              ARM_TENANT_ID: $(tenantId)
               TF_VAR_resource_group_name: $(tfBackendRg)
               TF_VAR_location: 'East US'
               TF_VAR_acr_name: $(acrName)
