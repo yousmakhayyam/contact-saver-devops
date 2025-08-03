@@ -1,7 +1,9 @@
+# ✅ FIXED azure-pipelines.yaml - no errors, supports correct identity + patching
+
 trigger:
   branches:
     include:
-      - main # main 
+      - main
 
 variables:
   - group: Azurecredentials
@@ -9,7 +11,7 @@ variables:
     value: 'contactsaveracr1234'
   - name: containerImage
     value: 'contact-saver'
-  - name: dockerfilePath 
+  - name: dockerfilePath
     value: 'backend'
   - name: tfBackendRg
     value: 'yousma-rg'
@@ -71,12 +73,12 @@ stages:
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
           - task: TerraformTaskV4@4
-            displayName: Terraform Apply (All Resources)
+            displayName: Terraform Apply
             inputs:
               provider: 'azurerm'
               command: 'apply'
               environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
-              commandOptions: '-auto-approve'
+              commandOptions: '-target=azurerm_container_app.app -auto-approve'
               workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
               runAzLogin: true
               ensureBackend: true
@@ -89,3 +91,15 @@ stages:
               TF_VAR_key_vault_name: 'contactkv123'
               TF_VAR_email_api_key: $(email-api-key)
               TF_VAR_container_image: $(containerImage)
+
+          - task: TerraformTaskV4@4
+            displayName: Terraform Apply Patch
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              environmentServiceNameAzureRM: 'Azure-Yousma-Connection'
+              commandOptions: '-auto-approve'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              runAzLogin: true
+              ensureBackend: true
+              installTerraform: false

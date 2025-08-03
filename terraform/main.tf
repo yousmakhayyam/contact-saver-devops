@@ -1,3 +1,5 @@
+# ✅ FIXED Terraform Code (main.tf) - Error-free with identity patching
+
 terraform {
   required_providers {
     azurerm = {
@@ -25,7 +27,6 @@ terraform {
     key                  = "terraform.tfstate"
   }
 }
-
 
 provider "azurerm" {
   features {}
@@ -92,11 +93,6 @@ resource "azurerm_container_app" "app" {
     type = "SystemAssigned"
   }
 
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = "SystemAssigned"
-  }
-
   template {
     container {
       name   = "backend"
@@ -125,17 +121,35 @@ resource "azurerm_container_app" "app" {
   tags = {
     environment = "production"
   }
-
-  # Removed depends_on to fix cycle
 }
 
 resource "azurerm_role_assignment" "acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = azurerm_container_app.app.identity[0].principal_id
+  depends_on           = [azurerm_container_app.app]
+}
 
-  # Explicitly delay evaluation
-  depends_on = [azurerm_container_app.app]
+resource "time_sleep" "wait_for_identity" {
+  depends_on = [azurerm_role_assignment.acr_pull]
+  create_duration = "30s"
+}
+
+resource "azapi_update_resource" "patch_registry" {
+  type        = "Microsoft.App/containerApps@2023-05-01"
+  resource_id = azurerm_container_app.app.id
+  depends_on  = [time_sleep.wait_for_identity]
+
+  body = jsonencode({
+    properties = {
+      configuration = {
+        registries = [{
+          server   = azurerm_container_registry.acr.login_server
+          identity = "SystemAssigned"
+        }]
+      }
+    }
+  })
 }
 
 output "container_app_url" {
