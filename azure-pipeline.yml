@@ -41,80 +41,72 @@ stages:
     displayName: Deploy Infrastructure
     dependsOn: BuildAndPush
     jobs:
-      - job: TerraformDeploy
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - task: AzureKeyVault@2
-            displayName: Fetch EMAIL-API-KEY
-            inputs:
-              azureSubscription: 'Azure-Yousma-Connection'
-              KeyVaultName: 'contactkv123'
-              SecretsFilter: 'EMAIL-API-KEY'
-              RunAsPreJob: true
+    - job: TerraformDeploy
+      pool:
+        vmImage: 'ubuntu-latest'
+      steps:
+        - task: AzureKeyVault@2
+          displayName: Fetch EMAIL-API-KEY
+          inputs:
+            azureSubscription: 'Azure-Yousma-Connection'
+            KeyVaultName: 'contactkv123'
+            SecretsFilter: 'EMAIL-API-KEY'
+            RunAsPreJob: true
 
-          - task: TerraformInstaller@1
-            displayName: Install Terraform
-            inputs:
-              terraformVersion: '1.6.6'
+        - task: TerraformInstaller@1
+          displayName: Install Terraform
+          inputs:
+            terraformVersion: '1.6.6'
 
-          - task: TerraformTaskV4@4
-            displayName: Terraform Init
-            inputs:
-              provider: 'azurerm'
-              command: 'init'
-              backendServiceArm: 'Azure-Yousma-Connection'
-              backendAzureRmResourceGroupName: '$(tfBackendRg)'
-              backendAzureRmStorageAccountName: '$(tfStorage)'
-              backendAzureRmContainerName: '$(tfContainer)'
-              backendAzureRmKey: 'terraform.tfstate'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-
-          - script: |
-              n=0
-              until [ $n -ge 3 ]
-              do
-                terraform apply -target=azurerm_container_app.app -auto-approve && break
-                echo "Terraform apply failed due to lock. Retrying in 20 seconds..."
-                sleep 20
-                n=$((n+1))
-              done
-            displayName: Terraform Apply - Container App Only (Retry on Lock)
+        - task: TerraformTaskV4@4
+          displayName: Terraform Init
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            backendServiceArm: 'Azure-Yousma-Connection'
+            backendAzureRmResourceGroupName: '$(tfBackendRg)'
+            backendAzureRmStorageAccountName: '$(tfStorage)'
+            backendAzureRmContainerName: '$(tfContainer)'
+            backendAzureRmKey: 'terraform.tfstate'
             workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            env:
-              TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: 'East US'
-              TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: 'contact-saver-app'
-              TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
 
-          - script: sleep 30
-            displayName: Wait for ACR Role Assignment
+        - script: |
+            n=0
+            until [ $n -ge 3 ]
+            do
+              terraform apply -target=azurerm_container_app.app -auto-approve && break
+              echo "Terraform apply failed due to lock. Retrying in 20 seconds..."
+              sleep 20
+              n=$((n+1))
+            done
+          displayName: Terraform Apply - Container App Only (Retry on Lock)
+          workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+          env:
+            TF_VAR_resource_group_name: $(tfBackendRg)
+            TF_VAR_location: 'East US'
+            TF_VAR_acr_name: $(acrName)
+            TF_VAR_web_app_name: 'contact-saver-app'
+            TF_VAR_key_vault_name: 'contactkv123'
+            TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
 
-          - script: |
-              n=0
-              until [ $n -ge 3 ]
-              do
-                terraform apply -auto-approve && break
-                echo "Terraform patch apply failed due to lock. Retrying in 20 seconds..."
-                sleep 20
-                n=$((n+1))
-              done
-            displayName: Terraform Apply Patch (Retry on Lock)
-            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-            env:
-              TF_VAR_resource_group_name: $(tfBackendRg)
-              TF_VAR_location: 'East US'
-              TF_VAR_acr_name: $(acrName)
-              TF_VAR_web_app_name: 'contact-saver-app'
-              TF_VAR_key_vault_name: 'contactkv123'
-              TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
-              ARM_CLIENT_ID: $(ARM_CLIENT_ID)
-              ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
-              ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
-              ARM_TENANT_ID: $(ARM_TENANT_ID)
+        - script: sleep 30
+          displayName: Wait for ACR Role Assignment
+
+        - script: |
+            n=0
+            until [ $n -ge 3 ]
+            do
+              terraform apply -auto-approve && break
+              echo "Terraform patch apply failed due to lock. Retrying in 20 seconds..."
+              sleep 20
+              n=$((n+1))
+            done
+          displayName: Terraform Apply Patch (Retry on Lock)
+          workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+          env:
+            TF_VAR_resource_group_name: $(tfBackendRg)
+            TF_VAR_location: 'East US'
+            TF_VAR_acr_name: $(acrName)
+            TF_VAR_web_app_name: 'contact-saver-app'
+            TF_VAR_key_vault_name: 'contactkv123'
+            TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
