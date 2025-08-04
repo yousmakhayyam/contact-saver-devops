@@ -135,21 +135,24 @@ resource "azapi_update_resource" "patch_container_image" {
         registries = [{
           server   = azurerm_container_registry.acr.login_server
           identity = "SystemAssigned"
+        }],
+        secrets = [{
+          name         = "EMAIL_API_KEY",
+          identity     = "SystemAssigned",
+          keyVaultUrl  = "${azurerm_key_vault.kv.vault_uri}secrets/email-api-key"
         }]
-      }
+      },
       template = {
         containers = [{
-          name  = "backend"
-          image = "${var.container_image}:latest"
+          name  = "backend",
+          image = "${var.container_image}:latest",
           resources = {
-            cpu    = 0.5
+            cpu    = 0.5,
             memory = "1.0Gi"
-          }
+          },
           env = [{
-            name = "EMAIL_API_KEY"
-            secrets = {
-              keyVaultUrl = "${azurerm_key_vault.kv.vault_uri}secrets/email-api-key"
-            }
+            name      = "EMAIL_API_KEY",
+            secretRef = "EMAIL_API_KEY"
           }]
         }]
       }
