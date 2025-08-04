@@ -32,7 +32,6 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# Existing variables
 variable "resource_group_name" { type = string }
 variable "location"            { type = string }
 variable "acr_name"            { type = string }
