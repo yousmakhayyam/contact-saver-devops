@@ -35,8 +35,13 @@ stages:
       vmImage: ubuntu-latest
     steps:
     - task: TerraformInstaller@1
+      displayName: 'Install Terraform 1.6.6'
       inputs:
-        terraformVersion: 'latest'
+        terraformVersion: '1.6.6'
+
+    - script: terraform version
+      displayName: 'Show Terraform Version'
+      workingDirectory: 'terraform'
 
     - task: TerraformTaskV4@4
       name: TerraformInit
@@ -44,10 +49,10 @@ stages:
         provider: 'azurerm'
         command: 'init'
         workingDirectory: 'terraform'
-        backendServiceArm: '$(azureSubscription)'                    # ✅ REQUIRED for remote backend
-        backendAzureRmResourceGroupName: 'yousma-rg'                 # ✅ Your Resource Group
-        backendAzureRmStorageAccountName: 'yousmastorage'            # ✅ Your Storage Account
-        backendAzureRmContainerName: 'tfstate'                       # ✅ Your blob container name (must already exist)
+        backendServiceArm: '$(azureSubscription)'
+        backendAzureRmResourceGroupName: 'yousma-rg'
+        backendAzureRmStorageAccountName: 'yousmastorage'
+        backendAzureRmContainerName: 'tfstate'
         backendAzureRmKey: 'terraform.tfstate'
         environmentServiceNameAzureRM: '$(azureSubscription)'
 
