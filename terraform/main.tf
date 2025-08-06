@@ -3,7 +3,7 @@ provider "azurerm" {
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "yousma-rg"  # lowercase for consistency
+  name     = "yousma1-rg"  # lowercase for consistency
   location = "East US"
 }
 
