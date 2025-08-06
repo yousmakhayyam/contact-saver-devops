@@ -4,36 +4,48 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'  # Your ARM connection
-  containerRegistry: 'acr-connection1'          #  Your Docker registry connection
+  azureSubscription: 'Azure-Yousma-Connection'     # ✅ Your ARM service connection name
+  containerRegistry: 'acr-connection1'             # ✅ Your Docker registry connection (Service Connection to ACR)
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'myapp'
 
 stages:
+# -----------------------------------------------
+# 🔹 CI Stage: Build and Push Docker Image to ACR
+# -----------------------------------------------
 - stage: CI
   displayName: 'Build and Push Docker Image'
   jobs:
   - job: Build
     pool:
-      vmImage: ubuntu-latest
+      vmImage: 'ubuntu-latest'
     steps:
+    - checkout: self
+
     - task: Docker@2
+      displayName: 'Build and Push Docker Image to ACR'
       inputs:
         command: 'buildAndPush'
+        containerRegistry: '$(containerRegistry)'
         repository: '$(imageName)'
         dockerfile: 'backend/Dockerfile'
-        containerRegistry: '$(containerRegistry)'
+        buildContext: 'backend'
         tags: |
           latest
 
+# --------------------------------------------------------
+# 🔹 CD Stage: Deploy Infrastructure and App via Terraform
+# --------------------------------------------------------
 - stage: CD
   displayName: 'Deploy Infra & App via Terraform'
   dependsOn: CI
   jobs:
   - job: Deploy
     pool:
-      vmImage: ubuntu-latest
+      vmImage: 'ubuntu-latest'
     steps:
+    - checkout: self
+
     - task: TerraformInstaller@1
       displayName: 'Install Terraform 1.6.6'
       inputs:
@@ -45,6 +57,7 @@ stages:
 
     - task: TerraformTaskV4@4
       name: TerraformInit
+      displayName: 'Terraform Init'
       inputs:
         provider: 'azurerm'
         command: 'init'
@@ -55,10 +68,11 @@ stages:
         backendAzureRmContainerName: 'tfstate'
         backendAzureRmKey: 'terraform.tfstate'
         environmentServiceNameAzureRM: '$(azureSubscription)'
-        commandOptions: '-upgrade'  # ✅ Ensures azurerm >= 3.75.0 is installed
+        commandOptions: '-upgrade'
 
     - task: TerraformTaskV4@4
       name: TerraformApply
+      displayName: 'Terraform Apply'
       inputs:
         provider: 'azurerm'
         command: 'apply'
