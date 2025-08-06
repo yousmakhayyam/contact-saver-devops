@@ -1,112 +1,55 @@
 trigger:
   branches:
     include:
-      - main # 
+      - main
 
 variables:
-  - group: Azurecredentials
-  - name: acrName
-    value: 'contactsaveracr1234'
-  - name: containerImage
-    value: 'contact-saver'
-  - name: dockerfilePath
-    value: 'backend'
-  - name: tfBackendRg
-    value: 'yousma-rg'
-  - name: tfStorage
-    value: 'yousmastorage'
-  - name: tfContainer
-    value: 'tfstate'
+  azureSubscription: 'Azure-Yousma-Connection'  # ✅ Your ARM connection
+  containerRegistry: 'acr-connection1'          # ✅ Your Docker registry connection
+  acrLoginServer: 'myprojectacr1234.azurecr.io'
+  imageName: 'myapp'
 
 stages:
-  - stage: BuildAndPush
-    displayName: Build and Push Docker Image to ACR
-    jobs:
-      - job: Build
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - task: Docker@2
-            displayName: Build and Push Docker Image
-            inputs:
-              containerRegistry: 'acr-connection1'
-              repository: '$(containerImage)'
-              command: 'buildAndPush'
-              Dockerfile: '$(dockerfilePath)/Dockerfile'
-              buildContext: '$(dockerfilePath)'
-              tags: |
-                latest
+- stage: CI
+  displayName: 'Build and Push Docker Image'
+  jobs:
+  - job: Build
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: Docker@2
+      inputs:
+        command: 'buildAndPush'
+        repository: '$(imageName)'
+        dockerfile: 'backend/Dockerfile'
+        containerRegistry: '$(containerRegistry)'  # ✅ Use service connection here
+        tags: |
+          latest
 
-  - stage: Deploy
-    displayName: Deploy Infrastructure
-    dependsOn: BuildAndPush
-    jobs:
-    - job: TerraformDeploy
-      pool:
-        vmImage: 'ubuntu-latest'
-      steps:
-        - task: AzureKeyVault@2
-          displayName: Fetch EMAIL-API-KEY
-          inputs:
-            azureSubscription: 'Azure-Yousma-Connection'
-            KeyVaultName: 'contactkv123'
-            SecretsFilter: 'EMAIL-API-KEY'
-            RunAsPreJob: true
+- stage: CD
+  displayName: 'Deploy Infra & App via Terraform'
+  dependsOn: CI
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: 'latest'
 
-        - task: TerraformInstaller@1
-          displayName: Install Terraform
-          inputs:
-            terraformVersion: '1.6.6'
+    - task: TerraformTaskV4@4
+      name: TerraformInit
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: 'terraform'
+        environmentServiceNameAzureRM: '$(azureSubscription)'
 
-        - task: TerraformTaskV4@4
-          displayName: Terraform Init
-          inputs:
-            provider: 'azurerm'
-            command: 'init'
-            backendServiceArm: 'Azure-Yousma-Connection'
-            backendAzureRmResourceGroupName: '$(tfBackendRg)'
-            backendAzureRmStorageAccountName: '$(tfStorage)'
-            backendAzureRmContainerName: '$(tfContainer)'
-            backendAzureRmKey: 'terraform.tfstate'
-            workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-
-        - script: |
-            n=0
-            until [ $n -ge 3 ]
-            do
-              terraform apply -target=azurerm_container_app.app -auto-approve && break
-              echo "Terraform apply failed due to lock. Retrying in 20 seconds..."
-              sleep 20
-              n=$((n+1))
-            done
-          displayName: Terraform Apply - Container App Only (Retry on Lock)
-          workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-          env:
-            TF_VAR_resource_group_name: $(tfBackendRg)
-            TF_VAR_location: 'East US'
-            TF_VAR_acr_name: $(acrName)
-            TF_VAR_web_app_name: 'contact-saver-app'
-            TF_VAR_key_vault_name: 'contactkv123'
-            TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
-
-        - script: sleep 30
-          displayName: Wait for ACR Role Assignment
-
-        - script: |
-            n=0
-            until [ $n -ge 3 ]
-            do
-              terraform apply -auto-approve && break
-              echo "Terraform patch apply failed due to lock. Retrying in 20 seconds..."
-              sleep 20
-              n=$((n+1))
-            done
-          displayName: Terraform Apply Patch (Retry on Lock)
-          workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-          env:
-            TF_VAR_resource_group_name: $(tfBackendRg)
-            TF_VAR_location: 'East US'
-            TF_VAR_acr_name: $(acrName)
-            TF_VAR_web_app_name: 'contact-saver-app'
-            TF_VAR_key_vault_name: 'contactkv123'
-            TF_VAR_container_image: '$(acrName).azurecr.io/$(containerImage)'
+    - task: TerraformTaskV4@4
+      name: TerraformApply
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: 'terraform'
+        environmentServiceNameAzureRM: '$(azureSubscription)'
