@@ -63,10 +63,14 @@ resource "azurerm_container_app" "app" {
     identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
   }
 
-  # ✅ Move ingress block outside template
   ingress {
     external_enabled = true
     target_port      = 80
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
   }
 
   template {
