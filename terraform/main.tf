@@ -2,49 +2,75 @@ provider "azurerm" {
   features {}
 }
 
+# 🔷 Resource Group
 resource "azurerm_resource_group" "rg" {
-  name     = "yousma1-rg"  # lowercase for consistency
+  name     = "yousma khayam-rg"
   location = "East US"
 }
 
+# 🔷 Azure Container Registry (ACR)
 resource "azurerm_container_registry" "acr" {
   name                = "myprojectacr1234"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
-  admin_enabled       = true
+  admin_enabled       = false
 }
 
-resource "azurerm_app_service_plan" "plan" {
-  name                = "myproject-plan"
+# 🔷 User-Assigned Identity for ACR Pull
+resource "azurerm_user_assigned_identity" "acr_pull_identity" {
+  name                = "acr-pull-identity"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
+}
 
-  sku {
-    tier = "Free"
-    size = "F1"
+# 🔷 Assign AcrPull Role to the Identity
+resource "azurerm_role_assignment" "acr_pull_role" {
+  principal_id         = azurerm_user_assigned_identity.acr_pull_identity.principal_id
+  role_definition_name = "AcrPull"
+  scope                = azurerm_container_registry.acr.id
+}
+
+# 🔷 Container App Environment
+resource "azurerm_container_app_environment" "env" {
+  name                = "myproject-env"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# 🔷 Azure Container App
+resource "azurerm_container_app" "app" {
+  name                         = "myproject-webapp"
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  resource_group_name          = azurerm_resource_group.rg.name
+  location                     = azurerm_resource_group.rg.location
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
   }
 
-  kind     = "Linux"
-  reserved = true
-}
+  template {
+    container {
+      name   = "myapp"
+      image  = "myprojectacr1234.azurecr.io/myapp:latest"
+      cpu    = 0.5
+      memory = "1.0Gi"
 
-resource "azurerm_linux_web_app" "webapp" {
-  name                = "myproject-webapp"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  service_plan_id     = azurerm_app_service_plan.plan.id
+      env {
+        name  = "WEBSITES_PORT"
+        value = "80"
+      }
+    }
 
-  site_config {
-    application_stack {
-      docker_image_name        = "myprojectacr1234.azurecr.io/myapp:latest"
-      docker_registry_url      = "https://${azurerm_container_registry.acr.login_server}"
-      docker_registry_username = azurerm_container_registry.acr.admin_username
-      docker_registry_password = azurerm_container_registry.acr.admin_password
+    ingress {
+      external_enabled = true
+      target_port      = 80
     }
   }
 
-  app_settings = {
-    "WEBSITES_PORT" = "80"
+  registry {
+    server   = azurerm_container_registry.acr.login_server
+    identity = azurerm_user_assigned_identity.acr_pull_identity.id
   }
 }
