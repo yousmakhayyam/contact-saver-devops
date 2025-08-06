@@ -32,7 +32,6 @@ stages:
         buildContext: 'backend'
         tags: |
           latest
-
 # --------------------------------------------------------
 # 🔹 CD Stage: Deploy Infrastructure and App via Terraform
 # --------------------------------------------------------
@@ -46,6 +45,7 @@ stages:
     steps:
     - checkout: self
 
+    # ✅ Install Terraform
     - task: TerraformInstaller@1
       displayName: 'Install Terraform 1.6.6'
       inputs:
@@ -55,6 +55,7 @@ stages:
       displayName: 'Show Terraform Version'
       workingDirectory: 'terraform'
 
+    # ✅ Terraform Init
     - task: TerraformTaskV4@4
       name: TerraformInit
       displayName: 'Terraform Init'
@@ -70,11 +71,38 @@ stages:
         environmentServiceNameAzureRM: '$(azureSubscription)'
         commandOptions: '-upgrade'
 
+    # ✅ Step 1: Apply Infra Only (no container app yet)
     - task: TerraformTaskV4@4
-      name: TerraformApply
-      displayName: 'Terraform Apply'
+      name: TerraformApplyInfra
+      displayName: 'Terraform Apply - Infra Only'
       inputs:
         provider: 'azurerm'
         command: 'apply'
         workingDirectory: 'terraform'
         environmentServiceNameAzureRM: '$(azureSubscription)'
+        commandOptions: |
+          -target=azurerm_resource_group.rg
+          -target=azurerm_container_registry.acr
+          -target=azurerm_user_assigned_identity.acr_pull_identity
+          -target=azurerm_role_assignment.acr_pull_role
+          -target=azurerm_container_app_environment.env
+          -auto-approve
+
+    # ⏳ Step 2: Wait for image to be available in ACR
+    - script: |
+        echo "⏳ Waiting for 60 seconds to ensure image is in ACR..."
+        sleep 60
+      displayName: 'Wait for Docker Image Availability'
+
+    # ✅ Step 3: Apply Container App (after image is definitely in ACR)
+    - task: TerraformTaskV4@4
+      name: TerraformApplyApp
+      displayName: 'Terraform Apply - Container App'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: 'terraform'
+        environmentServiceNameAzureRM: '$(azureSubscription)'
+        commandOptions: |
+          -target=azurerm_container_app.app
+          -auto-approve
