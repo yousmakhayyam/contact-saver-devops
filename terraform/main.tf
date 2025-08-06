@@ -54,7 +54,6 @@ resource "azurerm_container_app" "app" {
   name                         = "myproject-webapp"
   container_app_environment_id = azurerm_container_app_environment.env.id
   resource_group_name          = azurerm_resource_group.rg.name
-  location                     = azurerm_resource_group.rg.location
 
   revision_mode = "Single"
 

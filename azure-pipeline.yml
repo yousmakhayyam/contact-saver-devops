@@ -5,7 +5,7 @@ trigger:
 
 variables:
   azureSubscription: 'Azure-Yousma-Connection'  # Your ARM connection
-  containerRegistry: 'acr-connection1'          # Your Docker registry connection
+  containerRegistry: 'acr-connection1'          #  Your Docker registry connection
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'myapp'
 
