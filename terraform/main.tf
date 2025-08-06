@@ -2,6 +2,8 @@ provider "azurerm" {
   features {}
 }
 
+data "azurerm_client_config" "current" {}
+
 # 🔷 Resource Group
 resource "azurerm_resource_group" "rg" {
   name     = "yousma-khayam-rg"
@@ -45,6 +47,8 @@ resource "azurerm_container_app" "app" {
   resource_group_name          = azurerm_resource_group.rg.name
   location                     = azurerm_resource_group.rg.location
 
+  revision_mode = "Single"  # 🔴 REQUIRED to avoid `Missing required argument` error
+
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
@@ -53,7 +57,7 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "myapp"
-      image  = "myprojectacr1234.azurecr.io/myapp:latest"
+      image  = "${azurerm_container_registry.acr.login_server}/myapp:latest"
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -72,5 +76,9 @@ resource "azurerm_container_app" "app" {
   registry {
     server   = azurerm_container_registry.acr.login_server
     identity = azurerm_user_assigned_identity.acr_pull_identity.id
+  }
+
+  tags = {
+    environment = "dev"
   }
 }
