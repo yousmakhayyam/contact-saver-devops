@@ -4,13 +4,13 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'       #  ARM service connection name
+  azureSubscription: 'Azure-Yousma-Connection'       #   ARM service connection name
   containerRegistry: 'acr-connection1'               #  Docker registry service connection to ACR
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'myapp'
 
 stages:
-# -----------------------------------------------
+# ----------------------------------------------
 # 🔹 CI Stage: Build and Push Docker Image to ACR
 # -----------------------------------------------
 - stage: CI

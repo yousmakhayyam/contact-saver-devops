@@ -1,4 +1,12 @@
+
 terraform {
+  backend "azurerm" {
+    resource_group_name  = "yousma-rg"
+    storage_account_name = "yousmastorage"
+    container_name       = "tfstate"
+    key                  = "terraform.tfstate"
+  }
+
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -6,9 +14,9 @@ terraform {
     }
   }
 }
-
 provider "azurerm" {
   features {}
+  subscription_id = "adc9f320-e56e-45b1-845e-c73484745fc8"
 }
 
 data "azurerm_client_config" "current" {}
