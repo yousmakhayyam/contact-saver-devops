@@ -22,7 +22,7 @@ stages:
         command: 'buildAndPush'
         repository: '$(imageName)'
         dockerfile: 'backend/Dockerfile'
-        containerRegistry: '$(containerRegistry)'  # ✅ Use service connection here
+        containerRegistry: '$(containerRegistry)'
         tags: |
           latest
 
@@ -44,6 +44,11 @@ stages:
         provider: 'azurerm'
         command: 'init'
         workingDirectory: 'terraform'
+        backendServiceArm: '$(azureSubscription)'                    # ✅ REQUIRED for remote backend
+        backendAzureRmResourceGroupName: 'yousma-rg'                 # ✅ Your Resource Group
+        backendAzureRmStorageAccountName: 'yousmastorage'            # ✅ Your Storage Account
+        backendAzureRmContainerName: 'tfstate'                       # ✅ Your blob container name (must already exist)
+        backendAzureRmKey: 'terraform.tfstate'
         environmentServiceNameAzureRM: '$(azureSubscription)'
 
     - task: TerraformTaskV4@4

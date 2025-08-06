@@ -3,7 +3,7 @@ provider "azurerm" {
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "myproject-rg"
+  name     = "yousma-rg"  # lowercase for consistency
   location = "East US"
 }
 
@@ -24,7 +24,8 @@ resource "azurerm_app_service_plan" "plan" {
     tier = "Basic"
     size = "B1"
   }
-  kind = "Linux"
+
+  kind     = "Linux"
   reserved = true
 }
 
