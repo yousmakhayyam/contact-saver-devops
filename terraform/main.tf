@@ -77,7 +77,7 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "myapp"
-      image  = "${azurerm_container_registry.acr.login_server}/myapp:latest"
+      image  = "${azurerm_container_registry.acr.login_server}/moodly:latest"
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -100,4 +100,8 @@ resource "azurerm_container_app" "app" {
   depends_on = [
     azurerm_role_assignment.acr_pull_role
   ]
+}
+output "app_url" {
+  value = "https://${azurerm_container_app.app.latest_revision_fqdn}"
+  description = "Public URL of the deployed Moodly app"
 }

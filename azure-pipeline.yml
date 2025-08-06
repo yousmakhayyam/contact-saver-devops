@@ -7,7 +7,7 @@ variables:
   azureSubscription: 'Azure-Yousma-Connection'       # ARM service connection name
   containerRegistry: 'acr-connection1'               #  Dockersegistry service connection to ACR
   acrLoginServer: 'myprojectacr1234.azurecr.io'
-  imageName: 'myapp'
+  imageName: 'moodly'
 
 stages:
 # ----------------------------------------------
