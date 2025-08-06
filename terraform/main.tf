@@ -56,11 +56,17 @@ resource "azurerm_container_app" "app" {
   resource_group_name          = azurerm_resource_group.rg.name
   location                     = azurerm_resource_group.rg.location
 
-  revision_mode = "Single"  # 🔴 REQUIRED to avoid `Missing required argument` error
+  revision_mode = "Single"
 
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
+  }
+
+  # ✅ Move ingress block outside template
+  ingress {
+    external_enabled = true
+    target_port      = 80
   }
 
   template {
@@ -74,11 +80,6 @@ resource "azurerm_container_app" "app" {
         name  = "WEBSITES_PORT"
         value = "80"
       }
-    }
-
-    ingress {
-      external_enabled = true
-      target_port      = 80
     }
   }
 
