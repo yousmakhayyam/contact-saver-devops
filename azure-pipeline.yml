@@ -28,6 +28,7 @@ stages:
         docker info
       displayName: 'Docker Info'
 
+    # ✅ Build and push Docker image
     - task: Docker@2
       displayName: 'Build and Push Docker Image to ACR'
       inputs:
@@ -39,15 +40,16 @@ stages:
         tags: |
           latest
 
-    # ✅ Extra Verification: List pushed tags from ACR
+    # ✅ Confirm image was pushed
     - task: AzureCLI@2
-      displayName: 'Verify Docker Image in ACR'
+      displayName: 'Verify Docker Image Exists in ACR'
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "🔍 Verifying Docker image push..."
+          echo "🔍 Checking if image exists in ACR..."
+          az acr repository list --name myprojectacr1234 --output table
           az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
 
 # --------------------------------------------------------
@@ -63,6 +65,7 @@ stages:
     steps:
     - checkout: self
 
+    # ✅ Install Terraform
     - task: TerraformInstaller@1
       displayName: 'Install Terraform 1.6.6'
       inputs:
@@ -72,6 +75,7 @@ stages:
       displayName: 'Show Terraform Version'
       workingDirectory: terraform
 
+    # ✅ Terraform Init
     - task: TerraformTaskV4@4
       name: TerraformInit
       displayName: 'Terraform Init'
@@ -87,6 +91,7 @@ stages:
         environmentServiceNameAzureRM: $(azureSubscription)
         commandOptions: -upgrade
 
+    # ✅ Apply Infra Components First (up to container app env)
     - task: TerraformTaskV4@4
       name: TerraformApplyInfra
       displayName: 'Terraform Apply - Infra Only'
@@ -103,23 +108,23 @@ stages:
           -target=azurerm_container_app_environment.env
           -auto-approve
 
-    # ✅ Wait for ACR image sync
+    # ✅ Ensure ACR image is available
     - script: |
-        echo "⏳ Waiting 60s for ACR image to be fully available..."
+        echo "⏳ Waiting 60s to ensure image is fully available in ACR..."
         sleep 60
-      displayName: 'Sleep to Ensure ACR Image Sync'
+      displayName: 'Wait for Image Availability'
 
-    # ✅ Verify image is now present in ACR
     - task: AzureCLI@2
-      displayName: 'Ensure Image Is Now Available in ACR'
+      displayName: 'Verify Image Before Deploying App'
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "📦 Checking image availability..."
+          echo "📦 Checking if image exists in ACR..."
           az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
 
+    # ✅ Deploy the Azure Container App
     - task: TerraformTaskV4@4
       name: TerraformApplyApp
       displayName: 'Terraform Apply - Container App'
