@@ -4,7 +4,7 @@ provider "azurerm" {
 
 # 🔷 Resource Group
 resource "azurerm_resource_group" "rg" {
-  name     = "yousma khayam-rg"
+  name     = "yousma-khayam-rg"
   location = "East US"
 }
 
