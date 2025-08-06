@@ -13,13 +13,11 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# 🔷 Resource Group
 resource "azurerm_resource_group" "rg" {
   name     = "yousma-khayam-rg"
   location = "East US"
 }
 
-# 🔷 Azure Container Registry (ACR)
 resource "azurerm_container_registry" "acr" {
   name                = "myprojectacr1234"
   resource_group_name = azurerm_resource_group.rg.name
@@ -28,28 +26,24 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = false
 }
 
-# 🔷 User-Assigned Identity for ACR Pull
 resource "azurerm_user_assigned_identity" "acr_pull_identity" {
   name                = "acr-pull-identity"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# 🔷 Assign AcrPull Role to the Identity
 resource "azurerm_role_assignment" "acr_pull_role" {
   principal_id         = azurerm_user_assigned_identity.acr_pull_identity.principal_id
   role_definition_name = "AcrPull"
   scope                = azurerm_container_registry.acr.id
 }
 
-# 🔷 Container App Environment
 resource "azurerm_container_app_environment" "env" {
   name                = "myproject-env"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# 🔷 Azure Container App
 resource "azurerm_container_app" "app" {
   name                         = "myproject-webapp"
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -94,4 +88,8 @@ resource "azurerm_container_app" "app" {
   tags = {
     environment = "dev"
   }
+
+  depends_on = [
+    azurerm_role_assignment.acr_pull_role
+  ]
 }

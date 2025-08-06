@@ -4,8 +4,8 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'     # ✅ Your ARM service connection name
-  containerRegistry: 'acr-connection1'             # ✅  Your Docker registry connection (Service Connection to ACR)
+  azureSubscription: 'Azure-Yousma-Connection'
+  containerRegistry: 'acr-connection1'
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'myapp'
 
@@ -22,6 +22,12 @@ stages:
     steps:
     - checkout: self
 
+    - script: |
+        echo "🐳 Debug Docker Info"
+        docker version
+        docker context ls
+      displayName: 'Show Docker Info'
+
     - task: Docker@2
       displayName: 'Build and Push Docker Image to ACR'
       inputs:
@@ -32,6 +38,17 @@ stages:
         buildContext: 'backend'
         tags: |
           latest
+
+    - task: AzureCLI@2
+      displayName: 'Verify Docker Image Pushed to ACR'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "🔍 Checking if image exists in ACR..."
+          az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
+
 # --------------------------------------------------------
 # 🔹 CD Stage: Deploy Infrastructure and App via Terraform
 # --------------------------------------------------------
@@ -45,7 +62,6 @@ stages:
     steps:
     - checkout: self
 
-    # ✅ Install Terraform
     - task: TerraformInstaller@1
       displayName: 'Install Terraform 1.6.6'
       inputs:
@@ -55,7 +71,6 @@ stages:
       displayName: 'Show Terraform Version'
       workingDirectory: 'terraform'
 
-    # ✅ Terraform Init
     - task: TerraformTaskV4@4
       name: TerraformInit
       displayName: 'Terraform Init'
@@ -71,7 +86,6 @@ stages:
         environmentServiceNameAzureRM: '$(azureSubscription)'
         commandOptions: '-upgrade'
 
-    # ✅ Terraform Apply - Infra Only
     - task: TerraformTaskV4@4
       name: TerraformApplyInfra
       displayName: 'Terraform Apply - Infra Only'
@@ -80,15 +94,35 @@ stages:
         command: 'apply'
         workingDirectory: 'terraform'
         environmentServiceNameAzureRM: '$(azureSubscription)'
-        commandOptions: "-target=azurerm_resource_group.rg -target=azurerm_container_registry.acr -target=azurerm_user_assigned_identity.acr_pull_identity -target=azurerm_role_assignment.acr_pull_role -target=azurerm_container_app_environment.env -auto-approve"
+        commandOptions: >
+          -target=azurerm_resource_group.rg
+          -target=azurerm_container_registry.acr
+          -target=azurerm_user_assigned_identity.acr_pull_identity
+          -target=azurerm_role_assignment.acr_pull_role
+          -target=azurerm_container_app_environment.env
+          -auto-approve
 
-    # ⏳ Wait for Docker image to be pushed and ACR to sync
-    - script: |
-        echo "⏳ Waiting for 60 seconds to ensure image is available in ACR..."
-        sleep 60
-      displayName: 'Wait for Docker Image Availability'
+    # ✅ Wait Until Image Is Available
+    - task: AzureCLI@2
+      displayName: 'Wait Until Docker Image Is Available in ACR'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "⏳ Checking for image tag 'latest' in ACR repository 'myapp'..."
+          for i in {1..10}; do
+            tags=$(az acr repository show-tags --name myprojectacr1234 --repository myapp --output tsv 2>/dev/null)
+            if echo "$tags" | grep -q "latest"; then
+              echo "✅ Image 'latest' found in ACR!"
+              exit 0
+            fi
+            echo "🔄 Not found yet. Waiting 10s..."
+            sleep 10
+          done
+          echo "❌ Image 'latest' not found in ACR after waiting. Exiting with error."
+          exit 1
 
-    # ✅ Terraform Apply - Container App Only
     - task: TerraformTaskV4@4
       name: TerraformApplyApp
       displayName: 'Terraform Apply - Container App'
@@ -97,4 +131,6 @@ stages:
         command: 'apply'
         workingDirectory: 'terraform'
         environmentServiceNameAzureRM: '$(azureSubscription)'
-        commandOptions: "-target=azurerm_container_app.app -auto-approve"
+        commandOptions: >
+          -target=azurerm_container_app.app
+          -auto-approve
