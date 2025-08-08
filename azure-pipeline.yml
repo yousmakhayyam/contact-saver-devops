@@ -51,8 +51,6 @@ stages:
               targetPath: $(Build.ArtifactStagingDirectory)
               artifact: 'docker-image'
 
-  ---
-
   # --------------------------------------------------------
   # 🔹 CD Stage: Deploy Infra, then Push Image and Deploy App
   # --------------------------------------------------------
