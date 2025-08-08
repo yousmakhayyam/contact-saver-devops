@@ -21,24 +21,23 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
-# ---------- Existing resources (kept unchanged) ----------
-resource "azurerm_resource_group" "rg" {
-  name     = "yousma-khayam-rg"
-  location = "East US"
+# ✅ Resource group ko data source me convert kiya
+data "azurerm_resource_group" "rg" {
+  name = "yousma-rg"
 }
 
 resource "azurerm_container_registry" "acr" {
   name                = "myprojectacr1234"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
   sku                 = "Basic"
   admin_enabled       = false
 }
 
 resource "azurerm_user_assigned_identity" "acr_pull_identity" {
   name                = "acr-pull-identity"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_role_assignment" "acr_pull_role" {
@@ -49,30 +48,24 @@ resource "azurerm_role_assignment" "acr_pull_role" {
 
 resource "azurerm_container_app_environment" "env" {
   name                = "myproject-env"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
 }
 
-# ---------- NEW: Key Vault & secret (added) ----------
-# Note: pick a unique kv name if this collides in the subscription
 resource "azurerm_key_vault" "kv" {
-  name                        = "yousma-kv"
-  location                    = azurerm_resource_group.rg.location
-  resource_group_name         = azurerm_resource_group.rg.name
-  tenant_id                   = data.azurerm_client_config.current.tenant_id
-  sku_name                    = "standard"
-
-  # keep public access (default). If you need private endpoints/NSG, add later.
+  name                = "yousma-kv"
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
 }
 
-# Secret value comes from a terraform variable (pass it from pipeline as a secret)
 resource "azurerm_key_vault_secret" "email_api_key" {
   name         = "EMAIL-API-KEY"
   value        = var.email_api_key
   key_vault_id = azurerm_key_vault.kv.id
 }
 
-# Grant the user-assigned identity permission to GET secrets (for container app to read)
 resource "azurerm_key_vault_access_policy" "acr_identity_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -84,11 +77,10 @@ resource "azurerm_key_vault_access_policy" "acr_identity_policy" {
   ]
 }
 
-# ---------- Existing container app (modified only to add secret wiring) ----------
 resource "azurerm_container_app" "app" {
   name                         = "myproject-webapp"
   container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = azurerm_resource_group.rg.name
+  resource_group_name          = data.azurerm_resource_group.rg.name
   revision_mode                = "Single"
 
   identity {
@@ -118,7 +110,6 @@ resource "azurerm_container_app" "app" {
         value = "80"
       }
 
-      # ✅ Use secret_name (matches the secret block below)
       env {
         name        = "EMAIL_API_KEY"
         secret_name = "email-api-key"
@@ -126,7 +117,6 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # ✅ lowercase name to match secret_name above
   secret {
     name                = "email-api-key"
     key_vault_secret_id = azurerm_key_vault_secret.email_api_key.id
@@ -147,16 +137,14 @@ resource "azurerm_container_app" "app" {
   ]
 }
 
-
 output "app_url" {
   value       = "https://${azurerm_container_app.app.latest_revision_fqdn}"
   description = "Public URL of the deployed Moodly app"
 }
 
-# ---------- variable for secret (sensitive) ----------
 variable "email_api_key" {
   description = "Secret value to store in Key Vault (set this in pipeline as a secret variable)."
   type        = string
   sensitive   = true
-  default     = "change-me-please" # placeholder. override in pipeline.
+  default     = "change-me-please"
 }
