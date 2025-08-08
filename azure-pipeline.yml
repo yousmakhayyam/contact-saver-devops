@@ -4,7 +4,7 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'      #  ARM service connection name
+  azureSubscription: 'Azure-Yousma-Connection'      #  RM service connection name
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
   imageTag: 'latest'
