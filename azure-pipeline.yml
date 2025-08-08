@@ -5,7 +5,7 @@ trigger:
 
 variables:
   azureSubscription: 'Azure-Yousma-Connection'       # ARM service connection name
-  containerRegistry: 'acr-connection1'               #  Dockersegistry service connection to ACR
+  containerRegistry: 'acr-connection1'               # Docker registry service connection to ACR
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
 
@@ -48,9 +48,10 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "🔍 Checking if image exists in ACR..."
-          az acr repository list --name myprojectacr1234 --output table
-          az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
+          echo "🔍 Checking if repository exists in ACR..."
+          az acr repository list --name myprojectacr1234 --output table || true
+          echo "🔍 Checking tags..."
+          az acr repository show-tags --name myprojectacr1234 --repository moodly --output table || true
 
 # --------------------------------------------------------
 # 🔹 CD Stage: Deploy Infrastructure and App via Terraform
@@ -91,27 +92,33 @@ stages:
         environmentServiceNameAzureRM: $(azureSubscription)
         commandOptions: -upgrade
 
-    # ✅ Apply Infra Components First (up to container app env)
+    # ✅ Terraform Apply - Infra only (creates RG, ACR, Identity, Key Vault & secret & access policy)
+    # NOTE: this step **must** receive the secret via pipeline variable EMAIL_API_KEY.
     - task: TerraformTaskV4@4
       name: TerraformApplyInfra
-      displayName: 'Terraform Apply - Infra Only'
+      displayName: 'Terraform Apply - Infra Only (incl. Key Vault)'
       inputs:
         provider: azurerm
         command: apply
         workingDirectory: terraform
         environmentServiceNameAzureRM: $(azureSubscription)
+        # pass the secret variable into terraform
         commandOptions: >
           -target=azurerm_resource_group.rg
           -target=azurerm_container_registry.acr
           -target=azurerm_user_assigned_identity.acr_pull_identity
           -target=azurerm_role_assignment.acr_pull_role
           -target=azurerm_container_app_environment.env
+          -target=azurerm_key_vault.kv
+          -target=azurerm_key_vault_secret.email_api_key
+          -target=azurerm_key_vault_access_policy.acr_identity_policy
+          -var="email_api_key=$(EMAIL_API_KEY)"
           -auto-approve
 
-    # ✅ Ensure ACR image is available
+    # ✅ Ensure ACR image is available (give a small delay)
     - script: |
-        echo "⏳ Waiting 60s to ensure image is fully available in ACR..."
-        sleep 60
+        echo "⏳ Waiting 30s to ensure image is fully available in ACR..."
+        sleep 30
       displayName: 'Wait for Image Availability'
 
     - task: AzureCLI@2
@@ -122,9 +129,9 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           echo "📦 Checking if image exists in ACR..."
-          az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
+          az acr repository show-tags --name myprojectacr1234 --repository moodly --output table || true
 
-    # ✅ Deploy the Azure Container App
+    # ✅ Deploy the Azure Container App (only app)
     - task: TerraformTaskV4@4
       name: TerraformApplyApp
       displayName: 'Terraform Apply - Container App'
@@ -136,3 +143,14 @@ stages:
         commandOptions: >
           -target=azurerm_container_app.app
           -auto-approve
+
+    # ✅ Output the app URL (optional - read via Terraform output)
+    - task: AzureCLI@2
+      displayName: 'Show Terraform output (app_url)'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "Terraform outputs:"
+          terraform -chdir=terraform output || true

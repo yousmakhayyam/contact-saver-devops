@@ -1,4 +1,3 @@
-
 terraform {
   backend "azurerm" {
     resource_group_name  = "yousma-rg"
@@ -14,6 +13,7 @@ terraform {
     }
   }
 }
+
 provider "azurerm" {
   features {}
   subscription_id = "adc9f320-e56e-45b1-845e-c73484745fc8"
@@ -21,6 +21,7 @@ provider "azurerm" {
 
 data "azurerm_client_config" "current" {}
 
+# ---------- Existing resources (kept unchanged) ----------
 resource "azurerm_resource_group" "rg" {
   name     = "yousma-khayam-rg"
   location = "East US"
@@ -52,6 +53,41 @@ resource "azurerm_container_app_environment" "env" {
   resource_group_name = azurerm_resource_group.rg.name
 }
 
+# ---------- NEW: Key Vault & secret (added) ----------
+# Note: pick a unique kv name if this collides in the subscription
+resource "azurerm_key_vault" "kv" {
+  name                        = "yousma-kv"
+  location                    = azurerm_resource_group.rg.location
+  resource_group_name         = azurerm_resource_group.rg.name
+  tenant_id                   = data.azurerm_client_config.current.tenant_id
+  sku_name                    = "standard"
+
+  soft_delete_enabled         = true
+  soft_delete_retention_days  = 7
+
+  # keep public access (default). If you need private endpoints/NSG, add later.
+}
+
+# Secret value comes from a terraform variable (pass it from pipeline as a secret)
+resource "azurerm_key_vault_secret" "email_api_key" {
+  name         = "EMAIL-API-KEY"
+  value        = var.email_api_key
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+# Grant the user-assigned identity permission to GET secrets (for container app to read)
+resource "azurerm_key_vault_access_policy" "acr_identity_policy" {
+  key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_user_assigned_identity.acr_pull_identity.principal_id
+
+  secret_permissions = [
+    "Get",
+    "List"
+  ]
+}
+
+# ---------- Existing container app (modified only to add secret wiring) ----------
 resource "azurerm_container_app" "app" {
   name                         = "myproject-webapp"
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -74,6 +110,7 @@ resource "azurerm_container_app" "app" {
     }
   }
 
+  # ---------- TEMPLATE: container definition ----------
   template {
     container {
       name   = "myapp"
@@ -85,7 +122,19 @@ resource "azurerm_container_app" "app" {
         name  = "WEBSITES_PORT"
         value = "80"
       }
+
+      # NEW: environment variable referencing the container-app secret
+      env {
+        name       = "EMAIL_API_KEY"
+        secret_ref = "EMAIL_API_KEY"
+      }
     }
+  }
+
+  # NEW: define a container-app secret which Terraform sets to the Key Vault secret value
+  secret {
+    name  = "EMAIL_API_KEY"
+    value = azurerm_key_vault_secret.email_api_key.value
   }
 
   registry {
@@ -98,10 +147,20 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_role_assignment.acr_pull_role
+    azurerm_role_assignment.acr_pull_role,
+    azurerm_key_vault_access_policy.acr_identity_policy
   ]
 }
+
 output "app_url" {
-  value = "https://${azurerm_container_app.app.latest_revision_fqdn}"
+  value       = "https://${azurerm_container_app.app.latest_revision_fqdn}"
   description = "Public URL of the deployed Moodly app"
+}
+
+# ---------- variable for secret (sensitive) ----------
+variable "email_api_key" {
+  description = "Secret value to store in Key Vault (set this in pipeline as a secret variable)."
+  type        = string
+  sensitive   = true
+  default     = "change-me-please" # placeholder. override in pipeline.
 }
