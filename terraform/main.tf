@@ -89,8 +89,7 @@ resource "azurerm_container_app" "app" {
   name                         = "myproject-webapp"
   container_app_environment_id = azurerm_container_app_environment.env.id
   resource_group_name          = azurerm_resource_group.rg.name
-
-  revision_mode = "Single"
+  revision_mode                = "Single"
 
   identity {
     type         = "UserAssigned"
@@ -107,7 +106,6 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # ---------- TEMPLATE: container definition ----------
   template {
     container {
       name   = "myapp"
@@ -120,18 +118,18 @@ resource "azurerm_container_app" "app" {
         value = "80"
       }
 
-      # NEW: environment variable referencing the container-app secret
+      # ✅ Use secret_name (matches the secret block below)
       env {
-        name       = "EMAIL_API_KEY"
-        secret_ref = "EMAIL_API_KEY"
+        name        = "EMAIL_API_KEY"
+        secret_name = "email-api-key"
       }
     }
   }
 
-  # NEW: define a container-app secret which Terraform sets to the Key Vault secret value
+  # ✅ lowercase name to match secret_name above
   secret {
-    name  = "EMAIL_API_KEY"
-    value = azurerm_key_vault_secret.email_api_key.value
+    name                = "email-api-key"
+    key_vault_secret_id = azurerm_key_vault_secret.email_api_key.id
   }
 
   registry {
@@ -148,6 +146,7 @@ resource "azurerm_container_app" "app" {
     azurerm_key_vault_access_policy.acr_identity_policy
   ]
 }
+
 
 output "app_url" {
   value       = "https://${azurerm_container_app.app.latest_revision_fqdn}"
