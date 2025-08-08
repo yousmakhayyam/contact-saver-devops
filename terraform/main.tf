@@ -76,66 +76,65 @@ resource "azurerm_key_vault_access_policy" "acr_identity_policy" {
     "List"
   ]
 }
-
 resource "azurerm_container_app" "app" {
-  name                         = "myproject-webapp"
-  container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = data.azurerm_resource_group.rg.name
-  revision_mode                = "Single"
-
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
-  }
-
-  ingress {
-    external_enabled = true
-    target_port      = 80
-
-    traffic_weight {
-      latest_revision = true
-      percentage      = 100
+    name                         = "myproject-webapp"
+    container_app_environment_id = azurerm_container_app_environment.env.id
+    resource_group_name          = data.azurerm_resource_group.rg.name
+    revision_mode                = "Single"
+  
+    identity {
+      type         = "UserAssigned"
+      identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
     }
-  }
-
-  template {
-    container {
-      name   = "myapp"
-      image  = "${azurerm_container_registry.acr.login_server}/moodly:latest"
-      cpu    = 0.5
-      memory = "1.0Gi"
-
-      env {
-        name  = "WEBSITES_PORT"
-        value = "80"
-      }
-
-      env {
-        name        = "EMAIL_API_KEY"
-        secret_name = "email-api-key"
+  
+    ingress {
+      external_enabled = true
+      target_port      = 80
+  
+      traffic_weight {
+        latest_revision = true
+        percentage      = 100
       }
     }
+  
+    template {
+      container {
+        name   = "myapp"
+        image  = "${azurerm_container_registry.acr.login_server}/moodly:latest"
+        cpu    = 0.5
+        memory = "1.0Gi"
+  
+        env {
+          name  = "WEBSITES_PORT"
+          value = "80"
+        }
+  
+        env {
+          name        = "EMAIL_API_KEY"
+          secret_name = "email-api-key"
+        }
+      }
+    }
+  
+    secret {
+      name                = "email-api-key"
+      key_vault_secret_id = azurerm_key_vault_secret.email_api_key.id
+    }
+  
+    registry {
+      server   = azurerm_container_registry.acr.login_server
+      identity = azurerm_user_assigned_identity.acr_pull_identity.id
+    }
+  
+    tags = {
+      environment = "dev"
+    }
+  
+    depends_on = [
+      azurerm_role_assignment.acr_pull_role,
+      azurerm_key_vault_access_policy.acr_identity_policy
+    ]
   }
-
-  secret {
-    name                = "email-api-key"
-    key_vault_secret_id = azurerm_key_vault_secret.email_api_key.id
-  }
-
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = azurerm_user_assigned_identity.acr_pull_identity.id
-  }
-
-  tags = {
-    environment = "dev"
-  }
-
-  depends_on = [
-    azurerm_role_assignment.acr_pull_role,
-    azurerm_key_vault_access_policy.acr_identity_policy
-  ]
-}
 
 output "app_url" {
   value       = "https://${azurerm_container_app.app.latest_revision_fqdn}"
