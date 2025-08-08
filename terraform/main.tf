@@ -105,15 +105,13 @@ resource "azurerm_container_app" "app" {
       memory = "1.0Gi"
 
       env {
-        name  = "WEBSITES_PORT"
-        value = "80"
+        name        = "WEBSITES_PORT"
+        value       = "80"
       }
 
       env {
--        name        = "EMAIL_API_KEY"
--        secret_ref  = "email-api-key"
-+        name        = "EMAIL_API_KEY"
-+        secret_name = "email-api-key"
+        name        = "EMAIL_API_KEY"
+        secret_name = "email-api-key"
       }
     }
   }
