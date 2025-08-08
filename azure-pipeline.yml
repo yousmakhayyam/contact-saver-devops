@@ -4,8 +4,8 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'       #  ARM service connection name
-  containerRegistry: 'acr-connection1'               # Docker registry service connection to ACR
+  azureSubscription: 'Azure-Yousma-Connection'      #  ARM service connection name
+  containerRegistry: 'acr-connection1'              # Docker registry service connection to ACR
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
 
@@ -34,7 +34,7 @@ stages:
             inputs:
               command: buildAndPush
               containerRegistry: $(containerRegistry)
-              repository: $(imageName)
+              repository: $(acrLoginServer)/$(imageName)
               dockerfile: backend/Dockerfile
               buildContext: backend
               tags: |

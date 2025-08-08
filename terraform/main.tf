@@ -122,6 +122,7 @@ resource "azurerm_container_app" "app" {
     key_vault_secret_id = azurerm_key_vault_secret.email_api_key.id
   }
 
+  # This is the corrected block for registry authentication
   registry {
     server   = azurerm_container_registry.acr.login_server
     identity = azurerm_user_assigned_identity.acr_pull_identity.id
