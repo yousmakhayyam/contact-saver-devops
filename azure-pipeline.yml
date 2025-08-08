@@ -34,7 +34,7 @@ stages:
             inputs:
               command: buildAndPush
               containerRegistry: $(containerRegistry)
-              repository: $(imageName)
+              repository: $(acrLoginServer)/$(imageName)
               dockerfile: backend/Dockerfile
               buildContext: backend
               tags: |
