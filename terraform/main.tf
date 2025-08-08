@@ -110,8 +110,10 @@ resource "azurerm_container_app" "app" {
       }
 
       env {
-        name        = "EMAIL_API_KEY"
-        secret_ref  = "email-api-key" # <-- Change this line
+-        name        = "EMAIL_API_KEY"
+-        secret_ref  = "email-api-key"
++        name        = "EMAIL_API_KEY"
++        secret_name = "email-api-key"
       }
     }
   }
@@ -119,7 +121,7 @@ resource "azurerm_container_app" "app" {
   secret {
     name                = "email-api-key"
     key_vault_secret_id = azurerm_key_vault_secret.email_api_key.id
-    identity            = azurerm_user_assigned_identity.acr_pull_identity.id # <-- Add this line
+    identity            = azurerm_user_assigned_identity.acr_pull_identity.id
   }
 
   registry {
@@ -136,7 +138,6 @@ resource "azurerm_container_app" "app" {
     azurerm_key_vault_access_policy.acr_identity_policy
   ]
 }
-
 output "app_url" {
   value       = "https://${azurerm_container_app.app.latest_revision_fqdn}"
   description = "Public URL of the deployed Moodly app"
