@@ -5,7 +5,7 @@ trigger:
 
 variables:
   azureSubscription: 'Azure-Yousma-Connection'       #  ARM service connection name
-  containerRegistry: 'acr-connection1'               # Docker registry service connection to ACR
+  containerRegistry: 'acr-connection1'               #  Docker registry service connection to ACR
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
 
