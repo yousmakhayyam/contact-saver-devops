@@ -4,15 +4,15 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'      #   ARM service connection name
+  azureSubscription: 'Azure-Yousma-Connection'
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
   imageTag: 'latest'
-  
+
 stages:
   # ----------------------------------------------
-  # 🔹 CI Stage: Build Docker Image
-  # -----------------------------------------------
+  # CI Stage: Build Docker Image
+  # ----------------------------------------------
   - stage: CI
     displayName: 'Build Docker Image'
     jobs:
@@ -27,33 +27,29 @@ stages:
               docker version
               docker info
             displayName: 'Docker Info'
-            
-          # ✅ Build the Docker image
+
           - task: Docker@2
             displayName: 'Build Docker Image'
             inputs:
               command: build
-              containerRegistry: ''
               repository: $(imageName)
               dockerfile: backend/Dockerfile
               buildContext: backend
               tags: $(imageTag)
-              
-          # ✅ Save the Docker image to a tar file
+
           - script: |
               docker save -o $(Build.ArtifactStagingDirectory)/$(imageName).tar $(imageName):$(imageTag)
             displayName: 'Save Docker Image to Tar'
-            
-          # ✅ Publish the tar file as a pipeline artifact
+
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Docker Image Artifact'
             inputs:
               targetPath: $(Build.ArtifactStagingDirectory)
               artifact: 'docker-image'
 
-  # --------------------------------------------------------
-  # 🔹 CD Stage: Deploy Infra, then Push Image and Deploy App
-  # --------------------------------------------------------
+  # ----------------------------------------------
+  # CD Stage: Deploy Infra, Push Image & Deploy App
+  # ----------------------------------------------
   - stage: CD
     displayName: 'Deploy Infra, Push Image & Deploy App'
     dependsOn: CI
@@ -64,19 +60,16 @@ stages:
         steps:
           - checkout: self
 
-          # ✅ Download the Docker image tar file from the CI stage
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Docker Image Artifact'
             inputs:
               artifact: 'docker-image'
               path: $(Build.ArtifactStagingDirectory)
 
-          # ✅ Load the Docker image from the tar file
           - script: |
               docker load -i $(Build.ArtifactStagingDirectory)/$(imageName).tar
             displayName: 'Load Docker Image from Tar'
 
-          # ✅ Install Terraform and run Init/Apply for infrastructure
           - task: TerraformInstaller@1
             displayName: 'Install Terraform 1.6.6'
             inputs:
@@ -97,6 +90,7 @@ stages:
               environmentServiceNameAzureRM: $(azureSubscription)
               commandOptions: -upgrade
 
+          # Apply Infra only (ACR first)
           - task: TerraformTaskV4@4
             name: TerraformApplyInfra
             displayName: 'Terraform Apply - Infra Only (creates ACR)'
@@ -110,7 +104,6 @@ stages:
                 -var="email_api_key=$(EMAIL_API_KEY)"
                 -auto-approve
 
-          # ✅ Login to the newly created ACR
           - task: AzureCLI@2
             displayName: 'Docker Login to ACR'
             inputs:
@@ -119,22 +112,18 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 az acr login --name myprojectacr1234
-                
-          # ✅ Tag the image with the full ACR path before pushing
+
           - script: |
               docker tag $(imageName):$(imageTag) $(acrLoginServer)/$(imageName):$(imageTag)
             displayName: 'Tag Docker Image for ACR'
 
-          # ✅ Push the Docker image to the new ACR
           - task: Docker@2
             displayName: 'Push Docker Image to ACR'
             inputs:
               command: push
-              containerRegistry: ''
               repository: $(acrLoginServer)/$(imageName)
               tags: $(imageTag)
-              
-          # ✅ Continue with the rest of your deployment steps
+
           - task: TerraformTaskV4@4
             displayName: 'Terraform Apply - All remaining resources'
             inputs:
@@ -142,7 +131,9 @@ stages:
               command: apply
               workingDirectory: terraform
               environmentServiceNameAzureRM: $(azureSubscription)
-              commandOptions: -auto-approve
+              commandOptions: >
+                -var="email_api_key=$(EMAIL_API_KEY)"
+                -auto-approve
 
           - task: AzureCLI@2
             displayName: 'Show Terraform output (app_url)'
