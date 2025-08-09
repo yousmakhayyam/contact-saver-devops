@@ -12,7 +12,7 @@ variables:
 stages:
   # ----------------------------------------------
   # CI Stage: Build Docker Image
-  # --------------------------------------------
+  # ----------------------------------------------
   - stage: CI
     displayName: 'Build Docker Image'
     jobs:
@@ -88,7 +88,6 @@ stages:
               backendAzureRmContainerName: tfstate
               backendAzureRmKey: terraform.tfstate
               environmentServiceNameAzureRM: $(azureSubscription)
-              commandOptions: -upgrade
 
           # Apply Infra only (ACR first)
           - task: TerraformTaskV4@4
@@ -102,6 +101,7 @@ stages:
               commandOptions: >
                 -target=azurerm_container_registry.acr
                 -var="email_api_key=$(EMAIL_API_KEY)"
+                -var="pipeline_sp_object_id=$(PIPELINE_SP_OBJECT_ID)"
                 -auto-approve
 
           - task: AzureCLI@2
@@ -124,6 +124,7 @@ stages:
               repository: $(acrLoginServer)/$(imageName)
               tags: $(imageTag)
 
+          # Apply all remaining resources (Container App, Key Vault, etc.)
           - task: TerraformTaskV4@4
             displayName: 'Terraform Apply - All remaining resources'
             inputs:
@@ -133,6 +134,7 @@ stages:
               environmentServiceNameAzureRM: $(azureSubscription)
               commandOptions: >
                 -var="email_api_key=$(EMAIL_API_KEY)"
+                -var="pipeline_sp_object_id=$(PIPELINE_SP_OBJECT_ID)"
                 -auto-approve
 
           - task: AzureCLI@2
