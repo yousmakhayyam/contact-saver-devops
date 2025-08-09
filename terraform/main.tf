@@ -20,6 +20,11 @@ provider "azurerm" {
   features {}
 }
 
+variable "email_api_key" {
+  description = "The email API key for the app"
+  type        = string
+}
+
 # Reference existing resource group (prevents deletion issue)
 data "azurerm_resource_group" "rg" {
   name = "yousma-rg"

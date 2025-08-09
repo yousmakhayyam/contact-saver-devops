@@ -12,7 +12,7 @@ variables:
 stages:
   # ----------------------------------------------
   # CI Stage: Build Docker Image
-  # ----------------------------------------------
+  # --------------------------------------------
   - stage: CI
     displayName: 'Build Docker Image'
     jobs:
