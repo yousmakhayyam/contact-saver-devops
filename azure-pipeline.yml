@@ -4,80 +4,24 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'       # ARM service connection name
-  containerRegistry: 'acr-connection1'               #  Dockersegistry service connection to ACR
+  azureSubscription: 'Azure-Yousma-Connection'
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
 
 stages:
-# ----------------------------------------------
-# 🔹 CI Stage: Build and Push Docker Image to ACR
-# -----------------------------------------------
-- stage: CI
-  displayName: 'Build and Push Docker Image'
+# Step 1: Create ACR first
+- stage: Create_ACR
+  displayName: 'Terraform Apply - Create ACR'
   jobs:
-  - job: Build
+  - job: TF_ACR
     pool:
       vmImage: 'ubuntu-latest'
     steps:
     - checkout: self
-
-    - script: |
-        echo "🐳 Docker Diagnostics"
-        docker version
-        docker info
-      displayName: 'Docker Info'
-
-    # ✅ Build and push Docker image
-    - task: Docker@2
-      displayName: 'Build and Push Docker Image to ACR'
-      inputs:
-        command: buildAndPush
-        containerRegistry: $(containerRegistry)
-        repository: $(imageName)
-        dockerfile: backend/Dockerfile
-        buildContext: backend
-        tags: |
-          latest
-
-    # ✅ Confirm image was pushed
-    - task: AzureCLI@2
-      displayName: 'Verify Docker Image Exists in ACR'
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "🔍 Checking if image exists in ACR..."
-          az acr repository list --name myprojectacr1234 --output table
-          az acr repository show-tags --name myprojectacr1234 --repository moodly --output table
-
-# ------------------------------------------------------
-# 🔹 CD Stage: Deploy Infrastructure and App via Terraform
-# --------------------------------------------------------
-- stage: CD
-  displayName: 'Deploy Infra & App via Terraform'
-  dependsOn: CI
-  jobs:
-  - job: Deploy
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    - checkout: self
-
-    # ✅ Install Terraform
     - task: TerraformInstaller@1
-      displayName: 'Install Terraform 1.6.6'
       inputs:
         terraformVersion: '1.6.6'
-
-    - script: terraform version
-      displayName: 'Show Terraform Version'
-      workingDirectory: terraform
-
-    # ✅ Terraform Init
     - task: TerraformTaskV4@4
-      name: TerraformInit
       displayName: 'Terraform Init'
       inputs:
         provider: 'azurerm'
@@ -89,50 +33,79 @@ stages:
         backendAzureRmContainerName: tfstate
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
-        commandOptions: -upgrade
-
-    # ✅ Apply Infra Components First (up to container app env)
     - task: TerraformTaskV4@4
-      name: TerraformApplyInfra
-      displayName: 'Terraform Apply - Infra Only'
+      displayName: 'Terraform Apply - Only ACR'
       inputs:
-        provider: azurerm
+        provider: 'azurerm'
         command: apply
         workingDirectory: terraform
         environmentServiceNameAzureRM: $(azureSubscription)
         commandOptions: >
           -target=azurerm_resource_group.rg
           -target=azurerm_container_registry.acr
-          -target=azurerm_user_assigned_identity.acr_pull_identity
-          -target=azurerm_role_assignment.acr_pull_role
-          -target=azurerm_container_app_environment.env
           -auto-approve
 
-    # ✅ Ensure ACR image is available
-    - script: |
-        echo "⏳ Waiting 60s to ensure image is fully available in ACR..."
-        sleep 60
-      displayName: 'Wait for Image Availability'
-
+# Step 2: Build and Push Image
+- stage: Build_Push
+  displayName: 'Build & Push Docker Image'
+  dependsOn: Create_ACR
+  jobs:
+  - job: BuildPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
     - task: AzureCLI@2
-      displayName: 'Verify Image Before Deploying App'
+      displayName: 'Login to ACR'
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "📦 Checking if image exists in ACR..."
+          az acr login --name myprojectacr1234
+          IMAGE=$(acrLoginServer)/$(imageName):latest
+          docker build -t $IMAGE backend
+          docker push $IMAGE
+    - task: AzureCLI@2
+      displayName: 'Verify Image Exists in ACR'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az acr repository list --name myprojectacr1234 --output table
           az acr repository show-tags --name myprojectacr1234 --repository moodly --output table
 
-    # ✅ Deploy the Azure Container App
-    - task: TerraformTaskV4@4
-      name: TerraformApplyApp
-      displayName: 'Terraform Apply - Container App'
+# Step 3: Deploy remaining infra + app
+- stage: Deploy_App
+  displayName: 'Deploy Infra & App'
+  dependsOn: Build_Push
+  jobs:
+  - job: TF_App
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+    - task: TerraformInstaller@1
       inputs:
-        provider: azurerm
+        terraformVersion: '1.6.6'
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: init
+        workingDirectory: terraform
+        backendServiceArm: $(azureSubscription)
+        backendAzureRmResourceGroupName: yousma-rg
+        backendAzureRmStorageAccountName: yousmastorage
+        backendAzureRmContainerName: tfstate
+        backendAzureRmKey: terraform.tfstate
+        environmentServiceNameAzureRM: $(azureSubscription)
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Apply - Infra & App'
+      inputs:
+        provider: 'azurerm'
         command: apply
         workingDirectory: terraform
         environmentServiceNameAzureRM: $(azureSubscription)
-        commandOptions: >
-          -target=azurerm_container_app.app
-          -auto-approve
+        commandOptions: -auto-approve
