@@ -76,7 +76,8 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "myapp"
-      image  = "${azurerm_container_registry.acr.login_server}/moodly:latest"
+      # Correct the image tag to use the Build.BuildId variable (passed via pipeline)
+      image  = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
       cpu    = 0.5
       memory = "1.0Gi"
 
@@ -99,4 +100,10 @@ resource "azurerm_container_app" "app" {
   depends_on = [
     azurerm_role_assignment.acr_pull_role
   ]
+}
+
+variable "image_tag" {
+  type        = string
+  description = "Tag of the Docker image to deploy"
+  default     = "latest"
 }
