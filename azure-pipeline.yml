@@ -39,7 +39,6 @@ stages:
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
 
-    # --- SAFE: try remove stale state lock blob (no-fail) ---
     - task: AzureCLI@2
       displayName: 'Ensure no stale Terraform lock blob (try delete)'
       inputs:
@@ -48,7 +47,6 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
-          # Attempt to delete Terraform lock blob if exists (safe - ignore errors)
           echo "Attempting to delete stale terraform lock blob (if present)..."
           az storage blob delete \
             --account-name yousmastorage \
@@ -58,7 +56,6 @@ stages:
             --only-show-errors || true
           echo "Done (delete attempt finished)."
 
-    # --- SAFE PRE-CHECK / IMPORT SCRIPT (same logic, minimal change) ---
     - task: AzureCLI@2
       displayName: 'Ensure RG state is safe (inspect/import existing RG)'
       inputs:
@@ -68,7 +65,6 @@ stages:
         inlineScript: |
           set -euo pipefail
           cd terraform
-
           DESIRED_RG="yousma-khayam-rg"
           STATE_RESOURCE="azurerm_resource_group.rg"
 
@@ -97,7 +93,6 @@ stages:
             echo "${STATE_RESOURCE} not present in state — safe to apply to create it."
           fi
 
-    # Apply only RG + ACR
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply - Only RG + ACR'
       inputs:
@@ -110,7 +105,6 @@ stages:
           -target=azurerm_container_registry.acr
           -auto-approve
 
-    # small wait to allow ACR to be fully ready
     - script: |
         echo "Waiting 20s for ACR readiness propagation..."
         sleep 20
@@ -137,8 +131,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
-          # Use Azure DevOps pipeline variables via $(var) substitution
-          ACR_NAME="$(acrName)" || ACR_NAME="$(acrName)"
+          ACR_NAME="$(acrName)"
           echo "Using ACR: $ACR_NAME"
           az acr login --name "$ACR_NAME"
 
