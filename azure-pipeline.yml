@@ -5,10 +5,14 @@ trigger:
 
 variables:
 - group: Azurecredentials  
-  azureSubscription: 'Azure-Yousma-Connection'
-  acrName: 'myprojectacr1234'
-  acrLoginServer: 'myprojectacr1234.azurecr.io'
-  imageName: 'moodly'
+- name: azureSubscription
+  value: 'Azure-Yousma-Connection'
+- name: acrName
+  value: 'myprojectacr1234'
+- name: acrLoginServer
+  value: 'myprojectacr1234.azurecr.io'
+- name: imageName
+  value: 'moodly'
 
 stages:
 # ------------------------------
