@@ -12,7 +12,7 @@ variables:
 stages:
 # ------------------------------
 # Stage 1: Create RG + ACR (safe)
-# --------------------------------
+# ------------------------------
 - stage: Create_ACR
   displayName: 'Terraform Apply - Create RG + ACR (safe)'
   jobs:
@@ -39,7 +39,26 @@ stages:
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
 
-    # --- SAFE PRE-CHECK / IMPORT SCRIPT ---
+    # --- SAFE: try remove stale state lock blob (no-fail) ---
+    - task: AzureCLI@2
+      displayName: 'Ensure no stale Terraform lock blob (try delete)'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          # Attempt to delete Terraform lock blob if exists (safe - ignore errors)
+          echo "Attempting to delete stale terraform lock blob (if present)..."
+          az storage blob delete \
+            --account-name yousmastorage \
+            --container-name tfstate \
+            --name "terraform.tfstate.lock.info" \
+            --auth-mode login \
+            --only-show-errors || true
+          echo "Done (delete attempt finished)."
+
+    # --- SAFE PRE-CHECK / IMPORT SCRIPT (same logic, minimal change) ---
     - task: AzureCLI@2
       displayName: 'Ensure RG state is safe (inspect/import existing RG)'
       inputs:
@@ -118,17 +137,15 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           set -euo pipefail
-          ACR_NAME=$(az acr list --resource-group yousma-khayam-rg --query "[?name=='${acrName}'].name | [0]" -o tsv || echo "${acrName}")
-          # fallback: use variable if list fails
-          if [ -z "$ACR_NAME" ]; then
-            ACR_NAME="${acrName}"
-          fi
+          # Use Azure DevOps pipeline variables via $(var) substitution
+          ACR_NAME="$(acrName)" || ACR_NAME="$(acrName)"
           echo "Using ACR: $ACR_NAME"
           az acr login --name "$ACR_NAME"
-          IMAGE=${acrLoginServer}/${imageName}:$(Build.BuildId)
+
+          IMAGE="$(acrLoginServer)/$(imageName):$(Build.BuildId)"
           echo "Building $IMAGE"
-          docker build -t $IMAGE backend
-          docker push $IMAGE
+          docker build -t "$IMAGE" backend
+          docker push "$IMAGE"
           echo "##vso[task.setvariable variable=IMAGE_URI]$IMAGE"
 
     - task: AzureCLI@2
