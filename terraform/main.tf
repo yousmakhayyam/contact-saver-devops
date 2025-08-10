@@ -40,10 +40,17 @@ variable "db_password" {
   description = "Database password secret from pipeline variable"
 }
 
-resource "azurerm_key_vault_secret" "db_password" {
-  name         = "DbPassword"
-  value        = var.db_password    # <-- use variable here
+resource "azurerm_key_vault_access_policy" "terraform_executor_policy" {
   key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = data.azurerm_client_config.current.object_id
+
+  secret_permissions = [
+    "Get",
+    "List",
+    "Set",
+    "Delete",
+  ]
 }
 
 resource "azurerm_key_vault_access_policy" "app_policy" {
@@ -51,14 +58,23 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
   tenant_id    = data.azurerm_client_config.current.tenant_id
   object_id    = "20548baa-5960-4466-9ca1-2cf51d3954e8"
 
+  secret_permissions = [
+    "Get",
+    "List",
+    "Set",
+    "Delete",
+  ]
+}
 
+resource "azurerm_key_vault_secret" "db_password" {
+  name         = "DbPassword"
+  value        = var.db_password
+  key_vault_id = azurerm_key_vault.kv.id
 
- secret_permissions = [
-  "Get",
-  "List",
-  "Set",
-  "Delete",
-]
+  depends_on = [
+    azurerm_key_vault_access_policy.app_policy,
+    azurerm_key_vault_access_policy.terraform_executor_policy
+  ]
 }
 
 resource "azurerm_container_registry" "acr" {
