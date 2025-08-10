@@ -5,13 +5,14 @@ trigger:
 
 variables:
   azureSubscription: 'Azure-Yousma-Connection'
+  acrName: 'myprojectacr1234'
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
 
 stages:
-# Step 1: Create ACR first
+# Step 1: Create RG + ACR
 - stage: Create_ACR
-  displayName: 'Terraform Apply - Create ACR'
+  displayName: 'Terraform Apply - Create RG + ACR'
   jobs:
   - job: TF_ACR
     pool:
@@ -34,7 +35,7 @@ stages:
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
     - task: TerraformTaskV4@4
-      displayName: 'Terraform Apply - Only ACR'
+      displayName: 'Terraform Apply - Only RG + ACR'
       inputs:
         provider: 'azurerm'
         command: apply
@@ -56,27 +57,27 @@ stages:
     steps:
     - checkout: self
     - task: AzureCLI@2
-      displayName: 'Login to ACR'
+      displayName: 'Login to ACR & Push Image'
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          az acr login --name myprojectacr1234
+          az acr login --name $(acrName)
           IMAGE=$(acrLoginServer)/$(imageName):latest
           docker build -t $IMAGE backend
           docker push $IMAGE
     - task: AzureCLI@2
-      displayName: 'Verify Image Exists in ACR'
+      displayName: 'Verify Image in ACR'
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          az acr repository list --name myprojectacr1234 --output table
-          az acr repository show-tags --name myprojectacr1234 --repository moodly --output table
+          az acr repository list --name $(acrName) --output table
+          az acr repository show-tags --name $(acrName) --repository $(imageName) --output table
 
-# Step 3: Deploy remaining infra + app
+# Step 3: Deploy Infra + App
 - stage: Deploy_App
   displayName: 'Deploy Infra & App'
   dependsOn: Build_Push
@@ -102,7 +103,7 @@ stages:
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
     - task: TerraformTaskV4@4
-      displayName: 'Terraform Apply - Infra & App'
+      displayName: 'Terraform Apply - All Remaining Infra + App'
       inputs:
         provider: 'azurerm'
         command: apply
