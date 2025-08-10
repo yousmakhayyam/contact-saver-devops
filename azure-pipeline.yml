@@ -52,7 +52,7 @@ stages:
           az acr repository list --name myprojectacr1234 --output table
           az acr repository show-tags --name myprojectacr1234 --repository moodly --output table
 
-# --------------------------------------------------------
+# ------------------------------------------------------
 # 🔹 CD Stage: Deploy Infrastructure and App via Terraform
 # --------------------------------------------------------
 - stage: CD
