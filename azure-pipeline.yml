@@ -109,6 +109,7 @@ stages:
           -target=azurerm_resource_group.rg
           -target=azurerm_container_registry.acr
           -auto-approve
+          -var="db_password=dummypass"
 
     - script: |
         echo "Waiting 20s for ACR readiness propagation..."
