@@ -49,12 +49,15 @@ resource "azurerm_key_vault_secret" "db_password" {
 resource "azurerm_key_vault_access_policy" "app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id = azurerm_user_assigned_identity.acr_pull_identity.principal_id
+  object_id    = "20548baa-5960-4466-9ca1-2cf51d3954e8"
 
 
 
   secret_permissions = [
     "Get"
+    "List",
+    "Set",
+    "Delete",
   ]
 }
 
