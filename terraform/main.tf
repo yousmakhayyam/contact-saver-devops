@@ -76,7 +76,7 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "myapp"
-      image  = "${azurerm_container_registry.acr.login_server}/myapp:latest"
+      image  = "${azurerm_container_registry.acr.login_server}/moodly:latest"
       cpu    = 0.5
       memory = "1.0Gi"
 
