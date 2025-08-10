@@ -184,8 +184,12 @@ stages:
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
 
-    - script: |
-        echo "Running Terraform Apply with image_tag=$(image_tag)..."
-        terraform apply -auto-approve -var="image_tag=$(image_tag)"
-      workingDirectory: terraform
+    - task: TerraformTaskV4@4
       displayName: 'Terraform Apply - All Remaining Infra + App'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: 'terraform'
+        environmentServiceNameAzureRM: $(azureSubscription)
+        commandOptions: '-auto-approve -var="image_tag=$(image_tag)"'
+
