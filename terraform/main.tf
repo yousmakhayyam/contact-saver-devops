@@ -53,7 +53,7 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
 
 
   secret_permissions = [
-    "get"
+    "Get"
   ]
 }
 
