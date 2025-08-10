@@ -10,18 +10,22 @@ variables:
   imageName: 'moodly'
 
 stages:
-# Step 1: Create RG + ACR ...
+# --------------------------------
+# Stage 1: Create RG + ACR (safe)
+# --------------------------------
 - stage: Create_ACR
-  displayName: 'Terraform Apply - Create RG + ACR'
+  displayName: 'Terraform Apply - Create RG + ACR (safe)'
   jobs:
   - job: TF_ACR
     pool:
       vmImage: 'ubuntu-latest'
     steps:
     - checkout: self
+
     - task: TerraformInstaller@1
       inputs:
         terraformVersion: '1.6.6'
+
     - task: TerraformTaskV4@4
       displayName: 'Terraform Init'
       inputs:
@@ -34,6 +38,47 @@ stages:
         backendAzureRmContainerName: tfstate
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
+
+    # --- SAFE PRE-CHECK / IMPORT SCRIPT ---
+    - task: AzureCLI@2
+      displayName: 'Ensure RG state is safe (inspect/import existing RG)'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          cd terraform
+
+          DESIRED_RG="yousma-khayam-rg"
+          STATE_RESOURCE="azurerm_resource_group.rg"
+
+          echo "Checking Terraform state for ${STATE_RESOURCE}..."
+          if terraform state list 2>/dev/null | grep -q "^${STATE_RESOURCE}$"; then
+            echo "Found ${STATE_RESOURCE} in state. Inspecting existing name..."
+            current_name=$(terraform state show ${STATE_RESOURCE} 2>/dev/null | sed -n 's/^ *name *= *"\(.*\)".*/\1/p' || echo "")
+            echo "Current name in state: '${current_name}'"
+            if [ "${current_name}" != "${DESIRED_RG}" ]; then
+              echo "State entry has different name -> removing state entry to avoid replacement"
+              terraform state rm ${STATE_RESOURCE} || true
+
+              echo "Checking if resource group '${DESIRED_RG}' already exists in subscription..."
+              if az group show -n "${DESIRED_RG}" >/dev/null 2>&1; then
+                echo "Resource group ${DESIRED_RG} exists — importing into Terraform state..."
+                SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+                terraform import ${STATE_RESOURCE} /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${DESIRED_RG}
+                echo "Import successful."
+              else
+                echo "Resource group ${DESIRED_RG} does not exist — Terraform will create it."
+              fi
+            else
+              echo "State entry matches desired name. No action needed."
+            fi
+          else
+            echo "${STATE_RESOURCE} not present in state — safe to apply to create it."
+          fi
+
+    # Apply only RG + ACR
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply - Only RG + ACR'
       inputs:
@@ -46,7 +91,15 @@ stages:
           -target=azurerm_container_registry.acr
           -auto-approve
 
-# Step 2: Build and Push Image
+    # small wait to allow ACR to be fully ready
+    - script: |
+        echo "Waiting 20s for ACR readiness propagation..."
+        sleep 20
+      displayName: 'Wait for ACR readiness'
+
+# --------------------------------
+# Stage 2: Build & push image
+# --------------------------------
 - stage: Build_Push
   displayName: 'Build & Push Docker Image'
   dependsOn: Create_ACR
@@ -56,6 +109,7 @@ stages:
       vmImage: 'ubuntu-latest'
     steps:
     - checkout: self
+
     - task: AzureCLI@2
       displayName: 'Login to ACR & Push Image'
       inputs:
@@ -63,10 +117,20 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          az acr login --name $(acrName)
-          IMAGE=$(acrLoginServer)/$(imageName):latest
+          set -euo pipefail
+          ACR_NAME=$(az acr list --resource-group yousma-khayam-rg --query "[?name=='${acrName}'].name | [0]" -o tsv || echo "${acrName}")
+          # fallback: use variable if list fails
+          if [ -z "$ACR_NAME" ]; then
+            ACR_NAME="${acrName}"
+          fi
+          echo "Using ACR: $ACR_NAME"
+          az acr login --name "$ACR_NAME"
+          IMAGE=${acrLoginServer}/${imageName}:$(Build.BuildId)
+          echo "Building $IMAGE"
           docker build -t $IMAGE backend
           docker push $IMAGE
+          echo "##vso[task.setvariable variable=IMAGE_URI]$IMAGE"
+
     - task: AzureCLI@2
       displayName: 'Verify Image in ACR'
       inputs:
@@ -77,9 +141,11 @@ stages:
           az acr repository list --name $(acrName) --output table
           az acr repository show-tags --name $(acrName) --repository $(imageName) --output table
 
-# Step 3: Deploy Infra + App
+# --------------------------------
+# Stage 3: Deploy infra + app
+# --------------------------------
 - stage: Deploy_App
-  displayName: 'Deploy Infra & App'
+  displayName: 'Terraform Apply - Infra & App'
   dependsOn: Build_Push
   jobs:
   - job: TF_App
@@ -87,9 +153,11 @@ stages:
       vmImage: 'ubuntu-latest'
     steps:
     - checkout: self
+
     - task: TerraformInstaller@1
       inputs:
         terraformVersion: '1.6.6'
+
     - task: TerraformTaskV4@4
       displayName: 'Terraform Init'
       inputs:
@@ -102,6 +170,7 @@ stages:
         backendAzureRmContainerName: tfstate
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
+
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply - All Remaining Infra + App'
       inputs:
