@@ -39,6 +39,11 @@ resource "azurerm_user_assigned_identity" "acr_pull_identity" {
   resource_group_name = azurerm_resource_group.rg.name
 }
 
+resource "azurerm_role_assignment" "acr_push_role" {
+  principal_id         = var.pipeline_service_principal_id 
+  role_definition_name = "AcrPush"
+  scope                = azurerm_container_registry.acr.id
+}
 resource "azurerm_role_assignment" "acr_pull_role" {
   principal_id         = azurerm_user_assigned_identity.acr_pull_identity.principal_id
   role_definition_name = "AcrPull"
