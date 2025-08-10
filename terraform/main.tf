@@ -34,12 +34,6 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = false
 }
 
-data "azurerm_container_registry_repository" "moodly_repo" {
-  name                  = "moodly"
-  container_registry_id = azurerm_container_registry.acr.id
-  depends_on            = [azurerm_container_registry.acr]
-}
-
 resource "azurerm_user_assigned_identity" "acr_pull_identity" {
   name                = "acr-pull-identity"
   location            = azurerm_resource_group.rg.location
@@ -103,7 +97,6 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_role_assignment.acr_pull_role,
-    data.azurerm_container_registry_repository.moodly_repo,
+    azurerm_role_assignment.acr_pull_role
   ]
 }

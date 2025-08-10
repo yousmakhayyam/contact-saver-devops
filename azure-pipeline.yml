@@ -10,7 +10,7 @@ variables:
   imageName: 'moodly'
 
 stages:
-# Step 1: Create RG + ACR
+# Step 1: Create RG + ACR ...
 - stage: Create_ACR
   displayName: 'Terraform Apply - Create RG + ACR'
   jobs:
