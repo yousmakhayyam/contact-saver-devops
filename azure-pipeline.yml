@@ -10,7 +10,7 @@ variables:
   imageName: 'moodly'
 
 stages:
-# --------------------------------
+# ------------------------------
 # Stage 1: Create RG + ACR (safe)
 # --------------------------------
 - stage: Create_ACR
