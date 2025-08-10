@@ -53,12 +53,12 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
 
 
 
-  secret_permissions = [
-    "Get"
-    "List",
-    "Set",
-    "Delete",
-  ]
+ secret_permissions = [
+  "Get",
+  "List",
+  "Set",
+  "Delete",
+]
 }
 
 resource "azurerm_container_registry" "acr" {
