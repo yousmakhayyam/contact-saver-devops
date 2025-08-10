@@ -26,6 +26,39 @@ resource "azurerm_resource_group" "rg" {
   location = "East US"
 }
 
+resource "azurerm_key_vault" "kv" {
+  name                     = "myproject-kv"
+  location                 = azurerm_resource_group.rg.location
+  resource_group_name      = azurerm_resource_group.rg.name
+  tenant_id                = data.azurerm_client_config.current.tenant_id
+  sku_name                 = "standard"
+
+  soft_delete_enabled      = true
+  purge_protection_enabled = false
+}
+
+# Changed here: Use Terraform variable for secret value instead of hardcoded string
+variable "db_password" {
+  type        = string
+  description = "Database password secret from pipeline variable"
+}
+
+resource "azurerm_key_vault_secret" "db_password" {
+  name         = "DbPassword"
+  value        = var.db_password    # <-- use variable here
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_access_policy" "app_policy" {
+  key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_container_app.app.identity.principal_id
+
+  secret_permissions = [
+    "get"
+  ]
+}
+
 resource "azurerm_container_registry" "acr" {
   name                = "myprojectacr1234"
   resource_group_name = azurerm_resource_group.rg.name
@@ -76,7 +109,6 @@ resource "azurerm_container_app" "app" {
   template {
     container {
       name   = "myapp"
-      # Correct the image tag to use the Build.BuildId variable (passed via pipeline)
       image  = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
       cpu    = 0.5
       memory = "1.0Gi"

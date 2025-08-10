@@ -4,6 +4,7 @@ trigger:
       - main
 
 variables:
+- group: Azurecredentials  
   azureSubscription: 'Azure-Yousma-Connection'
   acrName: 'myprojectacr1234'
   acrLoginServer: 'myprojectacr1234.azurecr.io'
@@ -191,4 +192,4 @@ stages:
         command: 'apply'
         workingDirectory: 'terraform'
         environmentServiceNameAzureRM: $(azureSubscription)
-        commandOptions: '-auto-approve -var="image_tag=$(image_tag)"'
+        commandOptions: '-auto-approve -var="image_tag=$(image_tag)" -var="db_password=$(DB_PASSWORD)"'
