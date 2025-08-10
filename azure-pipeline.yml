@@ -4,145 +4,135 @@ trigger:
       - main
 
 variables:
-  azureSubscription: 'Azure-Yousma-Connection'
+  azureSubscription: 'Azure-Yousma-Connection'       # ARM service connection name
+  containerRegistry: 'acr-connection1'               #  Dockersegistry service connection to ACR
   acrLoginServer: 'myprojectacr1234.azurecr.io'
   imageName: 'moodly'
-  imageTag: 'latest'
 
 stages:
-  # ----------------------------------------------
-  # CI Stage: Build Docker Image
-  # ----------------------------------------------
-  - stage: CI
-    displayName: 'Build Docker Image'
-    jobs:
-      - job: Build
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - checkout: self
+# ----------------------------------------------
+# 🔹 CI Stage: Build and Push Docker Image to ACR
+# -----------------------------------------------
+- stage: CI
+  displayName: 'Build and Push Docker Image'
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
 
-          - script: |
-              echo "🐳 Docker Diagnostics"
-              docker version
-              docker info
-            displayName: 'Docker Info'
+    - script: |
+        echo "🐳 Docker Diagnostics"
+        docker version
+        docker info
+      displayName: 'Docker Info'
 
-          - task: Docker@2
-            displayName: 'Build Docker Image'
-            inputs:
-              command: build
-              repository: $(imageName)
-              dockerfile: backend/Dockerfile
-              buildContext: backend
-              tags: $(imageTag)
+    # ✅ Build and push Docker image
+    - task: Docker@2
+      displayName: 'Build and Push Docker Image to ACR'
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(containerRegistry)
+        repository: $(imageName)
+        dockerfile: backend/Dockerfile
+        buildContext: backend
+        tags: |
+          latest
 
-          - script: |
-              docker save -o $(Build.ArtifactStagingDirectory)/$(imageName).tar $(imageName):$(imageTag)
-            displayName: 'Save Docker Image to Tar'
+    # ✅ Confirm image was pushed
+    - task: AzureCLI@2
+      displayName: 'Verify Docker Image Exists in ACR'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "🔍 Checking if image exists in ACR..."
+          az acr repository list --name myprojectacr1234 --output table
+          az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
 
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Docker Image Artifact'
-            inputs:
-              targetPath: $(Build.ArtifactStagingDirectory)
-              artifact: 'docker-image'
+# --------------------------------------------------------
+# 🔹 CD Stage: Deploy Infrastructure and App via Terraform
+# --------------------------------------------------------
+- stage: CD
+  displayName: 'Deploy Infra & App via Terraform'
+  dependsOn: CI
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
 
-  # ----------------------------------------------
-  # CD Stage: Deploy Infra, Push Image & Deploy App
-  # ----------------------------------------------
-  - stage: CD
-    displayName: 'Deploy Infra, Push Image & Deploy App'
-    dependsOn: CI
-    jobs:
-      - job: Deploy
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - checkout: self
+    # ✅ Install Terraform
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform 1.6.6'
+      inputs:
+        terraformVersion: '1.6.6'
 
-          - task: DownloadPipelineArtifact@2
-            displayName: 'Download Docker Image Artifact'
-            inputs:
-              artifact: 'docker-image'
-              path: $(Build.ArtifactStagingDirectory)
+    - script: terraform version
+      displayName: 'Show Terraform Version'
+      workingDirectory: terraform
 
-          - script: |
-              docker load -i $(Build.ArtifactStagingDirectory)/$(imageName).tar
-            displayName: 'Load Docker Image from Tar'
+    # ✅ Terraform Init
+    - task: TerraformTaskV4@4
+      name: TerraformInit
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: init
+        workingDirectory: terraform
+        backendServiceArm: $(azureSubscription)
+        backendAzureRmResourceGroupName: yousma-rg
+        backendAzureRmStorageAccountName: yousmastorage
+        backendAzureRmContainerName: tfstate
+        backendAzureRmKey: terraform.tfstate
+        environmentServiceNameAzureRM: $(azureSubscription)
+        commandOptions: -upgrade
 
-          - task: TerraformInstaller@1
-            displayName: 'Install Terraform 1.6.6'
-            inputs:
-              terraformVersion: '1.6.6'
+    # ✅ Apply Infra Components First (up to container app env)
+    - task: TerraformTaskV4@4
+      name: TerraformApplyInfra
+      displayName: 'Terraform Apply - Infra Only'
+      inputs:
+        provider: azurerm
+        command: apply
+        workingDirectory: terraform
+        environmentServiceNameAzureRM: $(azureSubscription)
+        commandOptions: >
+          -target=azurerm_resource_group.rg
+          -target=azurerm_container_registry.acr
+          -target=azurerm_user_assigned_identity.acr_pull_identity
+          -target=azurerm_role_assignment.acr_pull_role
+          -target=azurerm_container_app_environment.env
+          -auto-approve
 
-          - task: TerraformTaskV4@4
-            name: TerraformInit
-            displayName: 'Terraform Init'
-            inputs:
-              provider: 'azurerm'
-              command: init
-              workingDirectory: terraform
-              backendServiceArm: $(azureSubscription)
-              backendAzureRmResourceGroupName: yousma-rg
-              backendAzureRmStorageAccountName: yousmastorage
-              backendAzureRmContainerName: tfstate
-              backendAzureRmKey: terraform.tfstate
-              environmentServiceNameAzureRM: $(azureSubscription)
+    # ✅ Ensure ACR image is available
+    - script: |
+        echo "⏳ Waiting 60s to ensure image is fully available in ACR..."
+        sleep 60
+      displayName: 'Wait for Image Availability'
 
-          # Apply Infra only (ACR first)
-          - task: TerraformTaskV4@4
-            name: TerraformApplyInfra
-            displayName: 'Terraform Apply - Infra Only (creates ACR)'
-            inputs:
-              provider: azurerm
-              command: apply
-              workingDirectory: terraform
-              environmentServiceNameAzureRM: $(azureSubscription)
-              commandOptions: >
-                -target=azurerm_container_registry.acr
-                -var="email_api_key=$(EMAIL_API_KEY)"
-                -var="pipeline_sp_object_id=$(PIPELINE_SP_OBJECT_ID)"
-                -auto-approve
+    - task: AzureCLI@2
+      displayName: 'Verify Image Before Deploying App'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "📦 Checking if image exists in ACR..."
+          az acr repository show-tags --name myprojectacr1234 --repository myapp --output table
 
-          - task: AzureCLI@2
-            displayName: 'Docker Login to ACR'
-            inputs:
-              azureSubscription: $(azureSubscription)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                az acr login --name myprojectacr1234
-
-          - script: |
-              docker tag $(imageName):$(imageTag) $(acrLoginServer)/$(imageName):$(imageTag)
-            displayName: 'Tag Docker Image for ACR'
-
-          - task: Docker@2
-            displayName: 'Push Docker Image to ACR'
-            inputs:
-              command: push
-              repository: $(acrLoginServer)/$(imageName)
-              tags: $(imageTag)
-
-          # Apply all remaining resources (Container App, Key Vault, etc.)
-          - task: TerraformTaskV4@4
-            displayName: 'Terraform Apply - All remaining resources'
-            inputs:
-              provider: azurerm
-              command: apply
-              workingDirectory: terraform
-              environmentServiceNameAzureRM: $(azureSubscription)
-              commandOptions: >
-                -var="email_api_key=$(EMAIL_API_KEY)"
-                -var="pipeline_sp_object_id=$(PIPELINE_SP_OBJECT_ID)"
-                -auto-approve
-
-          - task: AzureCLI@2
-            displayName: 'Show Terraform output (app_url)'
-            inputs:
-              azureSubscription: $(azureSubscription)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "Terraform outputs:"
-                terraform -chdir=terraform output || true
+    # ✅ Deploy the Azure Container App
+    - task: TerraformTaskV4@4
+      name: TerraformApplyApp
+      displayName: 'Terraform Apply - Container App'
+      inputs:
+        provider: azurerm
+        command: apply
+        workingDirectory: terraform
+        environmentServiceNameAzureRM: $(azureSubscription)
+        commandOptions: >
+          -target=azurerm_container_app.app
+          -auto-approve

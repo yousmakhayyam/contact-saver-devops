@@ -1,135 +1,102 @@
 terraform {
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.107"
-    }
-  }
   backend "azurerm" {
     resource_group_name  = "yousma-rg"
     storage_account_name = "yousmastorage"
     container_name       = "tfstate"
     key                  = "terraform.tfstate"
   }
-}
 
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = ">= 3.75.0"
+    }
+  }
+}
 provider "azurerm" {
   features {}
+  subscription_id = "adc9f320-e56e-45b1-845e-c73484745fc8"
 }
 
-# --------------------
-# Variables
-# --------------------
-variable "email_api_key" {
-  description = "The email API key for the app"
-  type        = string
-}
+data "azurerm_client_config" "current" {}
 
-variable "pipeline_sp_object_id" {
-  description = "Object ID of the Azure DevOps pipeline's service principal"
-  type        = string
-}
-
-# --------------------
-# Resource Group
-# --------------------
 resource "azurerm_resource_group" "rg" {
-  name     = "yousma-rg"
+  name     = "yousma-khayam-rg"
   location = "East US"
 }
 
-# --------------------
-# Azure Container Registry
-# --------------------
 resource "azurerm_container_registry" "acr" {
-  name                = "contactsaveracr1234"
+  name                = "myprojectacr1234"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
   admin_enabled       = false
 }
 
-# --------------------
-# Key Vault
-# --------------------
-resource "azurerm_key_vault" "kv" {
-  name                        = "contactsavekv1234"
-  location                    = azurerm_resource_group.rg.location
-  resource_group_name         = azurerm_resource_group.rg.name
-  tenant_id                   = data.azurerm_client_config.current.tenant_id
-  sku_name                    = "standard"
-  purge_protection_enabled    = false
-  soft_delete_retention_days  = 7
-}
-
-data "azurerm_client_config" "current" {}
-
-# Key Vault Access for pipeline service principal
-resource "azurerm_key_vault_access_policy" "pipeline_sp" {
-  key_vault_id = azurerm_key_vault.kv.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = var.pipeline_sp_object_id
-
-  secret_permissions = [
-    "Get", "List", "Set", "Delete"
-  ]
-}
-
-# Store secret
-resource "azurerm_key_vault_secret" "email_api_key" {
-  name         = "EMAIL-API-KEY"
-  value        = var.email_api_key
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-# --------------------
-# Container Apps Environment
-# --------------------
-resource "azurerm_container_app_environment" "cae" {
-  name                = "contactsave-env"
+resource "azurerm_user_assigned_identity" "acr_pull_identity" {
+  name                = "acr-pull-identity"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# --------------------
-# Container App
-# --------------------
-resource "azurerm_container_app" "app" {
-  name                         = "contactsaveapp"
-  container_app_environment_id = azurerm_container_app_environment.cae.id
-  resource_group_name          = azurerm_resource_group.rg.name
-  location                     = azurerm_resource_group.rg.location
-  identity {
-    type = "SystemAssigned"
-  }
-  template {
-    container {
-      name   = "backend"
-      image  = "${azurerm_container_registry.acr.login_server}/backend:latest"
-      cpu    = 0.25
-      memory = "0.5Gi"
-      env {
-        name        = "EMAIL_API_KEY"
-        secret_name = "email-api-key"
-      }
-    }
-    secret {
-      name  = "email-api-key"
-      value = azurerm_key_vault_secret.email_api_key.value
-    }
-  }
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = "SystemAssigned"
-  }
-}
-
-# --------------------
-# Role Assignment - Container App can pull from ACR
-# --------------------
-resource "azurerm_role_assignment" "acr_pull" {
-  principal_id         = azurerm_container_app.app.identity[0].principal_id
+resource "azurerm_role_assignment" "acr_pull_role" {
+  principal_id         = azurerm_user_assigned_identity.acr_pull_identity.principal_id
   role_definition_name = "AcrPull"
   scope                = azurerm_container_registry.acr.id
 }
 
+resource "azurerm_container_app_environment" "env" {
+  name                = "myproject-env"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_container_app" "app" {
+  name                         = "myproject-webapp"
+  container_app_environment_id = azurerm_container_app_environment.env.id
+  resource_group_name          = azurerm_resource_group.rg.name
+
+  revision_mode = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
+  }
+
+  ingress {
+    external_enabled = true
+    target_port      = 80
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+
+  template {
+    container {
+      name   = "myapp"
+      image  = "${azurerm_container_registry.acr.login_server}/myapp:latest"
+      cpu    = 0.5
+      memory = "1.0Gi"
+
+      env {
+        name  = "WEBSITES_PORT"
+        value = "80"
+      }
+    }
+  }
+
+  registry {
+    server   = azurerm_container_registry.acr.login_server
+    identity = azurerm_user_assigned_identity.acr_pull_identity.id
+  }
+
+  tags = {
+    environment = "dev"
+  }
+
+  depends_on = [
+    azurerm_role_assignment.acr_pull_role
+  ]
+}
