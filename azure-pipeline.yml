@@ -192,4 +192,3 @@ stages:
         workingDirectory: 'terraform'
         environmentServiceNameAzureRM: $(azureSubscription)
         commandOptions: '-auto-approve -var="image_tag=$(image_tag)"'
-
