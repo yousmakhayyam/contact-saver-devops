@@ -27,7 +27,7 @@ resource "azurerm_resource_group" "rg" {
 }
 
 resource "azurerm_key_vault" "kv" {
-  name                     = "myproject-kv"
+  name                     = "myprojecty-kv"
   location                 = azurerm_resource_group.rg.location
   resource_group_name      = azurerm_resource_group.rg.name
   tenant_id                = data.azurerm_client_config.current.tenant_id
@@ -149,6 +149,52 @@ resource "azurerm_container_app" "app" {
 
   depends_on = [
     azurerm_role_assignment.acr_pull_role
+  ]
+}
+
+# Enable admin account for fetching credentials
+resource "azurerm_container_registry" "acr_admin_enabled" {
+  name                = azurerm_container_registry.acr.name
+  resource_group_name = azurerm_container_registry.acr.resource_group_name
+  location            = azurerm_container_registry.acr.location
+  sku                 = azurerm_container_registry.acr.sku
+  admin_enabled       = true
+
+  lifecycle {
+    ignore_changes = [
+      admin_enabled # Prevent Terraform from reapplying if toggled manually
+    ]
+  }
+}
+
+# Retrieve ACR admin credentials
+data "azurerm_container_registry" "acr_creds" {
+  name                = azurerm_container_registry.acr.name
+  resource_group_name = azurerm_container_registry.acr.resource_group_name
+  depends_on          = [azurerm_container_registry.acr_admin_enabled]
+}
+
+# Store ACR username in Key Vault
+resource "azurerm_key_vault_secret" "acr_username" {
+  name         = "AcrUsername"
+  value        = data.azurerm_container_registry.acr_creds.admin_username
+  key_vault_id = azurerm_key_vault.kv.id
+
+  depends_on = [
+    azurerm_key_vault_access_policy.terraform_executor_policy,
+    azurerm_key_vault_access_policy.app_policy
+  ]
+}
+
+# Store ACR password in Key Vault
+resource "azurerm_key_vault_secret" "acr_password" {
+  name         = "AcrPassword"
+  value        = data.azurerm_container_registry.acr_creds.admin_password
+  key_vault_id = azurerm_key_vault.kv.id
+
+  depends_on = [
+    azurerm_key_vault_access_policy.terraform_executor_policy,
+    azurerm_key_vault_access_policy.app_policy
   ]
 }
 
