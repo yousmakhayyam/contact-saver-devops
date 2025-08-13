@@ -34,7 +34,6 @@ resource "azurerm_key_vault" "kv" {
   sku_name                 = "standard"
 }
 
-# Changed here: Use Terraform variable for secret value instead of hardcoded string
 variable "db_password" {
   type        = string
   description = "Database password secret from pipeline variable"
@@ -152,6 +151,7 @@ resource "azurerm_container_app" "app" {
   ]
 }
 
+# ---- NEW CODE START ----
 # Enable admin account for fetching credentials
 resource "azurerm_container_registry" "acr_admin_enabled" {
   name                = azurerm_container_registry.acr.name
@@ -162,7 +162,7 @@ resource "azurerm_container_registry" "acr_admin_enabled" {
 
   lifecycle {
     ignore_changes = [
-      admin_enabled # Prevent Terraform from reapplying if toggled manually
+      admin_enabled
     ]
   }
 }
@@ -197,6 +197,7 @@ resource "azurerm_key_vault_secret" "acr_password" {
     azurerm_key_vault_access_policy.app_policy
   ]
 }
+# ---- NEW CODE END ----
 
 variable "image_tag" {
   type        = string
