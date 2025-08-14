@@ -81,7 +81,13 @@ resource "azurerm_container_registry" "acr" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
-  admin_enabled       = true # <-- CORRECTED: Admin account is now enabled here
+  admin_enabled       = true
+}
+
+# --- NEW: Fetch admin credentials ---
+data "azurerm_container_registry" "acr_creds" {
+  name                = azurerm_container_registry.acr.name
+  resource_group_name = azurerm_resource_group.rg.name
 }
 
 resource "azurerm_user_assigned_identity" "acr_pull_identity" {
@@ -151,11 +157,10 @@ resource "azurerm_container_app" "app" {
   ]
 }
 
-# ---- NEW CODE START ----
-# Store ACR username in Key Vault
+# ---- Store ACR username in Key Vault ----
 resource "azurerm_key_vault_secret" "acr_username" {
   name         = "AcrUsername"
-  value        = azurerm_container_registry.acr.admin_username
+  value        = data.azurerm_container_registry.acr_creds.admin_username
   key_vault_id = azurerm_key_vault.kv.id
 
   depends_on = [
@@ -164,10 +169,10 @@ resource "azurerm_key_vault_secret" "acr_username" {
   ]
 }
 
-# Store ACR password in Key Vault
+# ---- Store ACR password in Key Vault ----
 resource "azurerm_key_vault_secret" "acr_password" {
   name         = "AcrPassword"
-  value        = azurerm_container_registry.acr.admin_password
+  value        = data.azurerm_container_registry.acr_creds.admin_password
   key_vault_id = azurerm_key_vault.kv.id
 
   depends_on = [
@@ -175,7 +180,6 @@ resource "azurerm_key_vault_secret" "acr_password" {
     azurerm_key_vault_access_policy.app_policy
   ]
 }
-# ---- NEW CODE END ----
 
 variable "image_tag" {
   type        = string
