@@ -84,7 +84,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# --- NEW: Fetch admin credentials ---
+# ---  Fetch admin credentials ---
 data "azurerm_container_registry" "acr_creds" {
   name                = azurerm_container_registry.acr.name
   resource_group_name = azurerm_resource_group.rg.name
