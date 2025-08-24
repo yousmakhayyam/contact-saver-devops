@@ -122,7 +122,6 @@ resource "azurerm_container_app" "app" {
       name  = "acr-password"
       value = azurerm_key_vault_secret.acr_password.value
     }
-
     # Step 2: Use the secrets in the registry block
     container {
       name   = "myapp"
@@ -136,11 +135,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # Step 3: Pass the secrets to the registry block
+  # Step 3: Pass the secrets to the registry block by referencing their names
   registry {
     server   = azurerm_container_registry.acr.login_server
-    username = azurerm_key_vault_secret.acr_username.value
-    password = azurerm_key_vault_secret.acr_password.value
+    username = "acr-username"
+    password = "acr-password"
   }
 
   tags = {
