@@ -95,7 +95,7 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # **Correct placement and syntax for provider v3.75.0**
+  # Define secrets here to be referenced in registry block
   secret {
     name  = "acr-username-secret"
     value = azurerm_key_vault_secret.acr_username.value
@@ -118,11 +118,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # **Correct syntax for registry block in v3.75.0**
+  # Reference secrets by name in the registry block
   registry {
-    server = azurerm_container_registry.acr.login_server
-    username = "acr-username-secret"
-    password = "acr-password-secret"
+    server               = azurerm_container_registry.acr.login_server
+    username_secret_name = "acr-username-secret"
+    password_secret_name = "acr-password-secret"
   }
 
   tags = {
