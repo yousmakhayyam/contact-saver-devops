@@ -74,18 +74,6 @@ data "azurerm_container_registry" "acr_creds" {
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-resource "azurerm_user_assigned_identity" "acr_pull_identity" {
-  name                = "acr-pull-identity"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
-resource "azurerm_role_assignment" "acr_pull_role" {
-  principal_id         = azurerm_user_assigned_identity.acr_pull_identity.principal_id
-  role_definition_name = "AcrPull"
-  scope                = azurerm_container_registry.acr.id
-}
-
 resource "azurerm_container_app_environment" "env" {
   name                = "myproject-env"
   location            = azurerm_resource_group.rg.location
@@ -98,11 +86,6 @@ resource "azurerm_container_app" "app" {
   resource_group_name          = azurerm_resource_group.rg.name
   revision_mode                = "Single"
 
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
-  }
-
   ingress {
     external_enabled = true
     target_port      = 80
@@ -112,14 +95,14 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # ❌ CORRECT: The 'secret' block must be a top-level block inside 'azurerm_container_app'
+  # Define secrets here to be referenced in registry block
   secret {
-    name  = "acr-username"
-    value = azurerm_key_vault_secret.acr_username.value
+    name  = "acr-username-secret"
+    value = data.azurerm_container_registry.acr_creds.admin_username
   }
   secret {
-    name  = "acr-password"
-    value = azurerm_key_vault_secret.acr_password.value
+    name  = "acr-password-secret"
+    value = data.azurerm_container_registry.acr_creds.admin_password
   }
 
   template {
@@ -135,11 +118,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # ❌ CORRECT: The 'registry' block uses secret_name arguments to reference the secrets
+  # Reference secrets by name in the registry block
   registry {
     server               = azurerm_container_registry.acr.login_server
-    username_secret_name = "acr-username"
-    password_secret_name = "acr-password"
+    username_secret_name = "acr-username-secret"
+    password_secret_name = "acr-password-secret"
   }
 
   tags = {
@@ -147,7 +130,6 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_role_assignment.acr_pull_role,
     azurerm_key_vault_secret.acr_username,
     azurerm_key_vault_secret.acr_password
   ]
