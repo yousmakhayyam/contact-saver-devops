@@ -29,7 +29,7 @@ stages:
 
     - task: TerraformInstaller@1
       inputs:
-        terraformVersion: '1.7.5'
+        terraformVersion: '1.6.6'
 
     - task: TerraformTaskV4@4
       displayName: 'Terraform Init'
@@ -114,6 +114,25 @@ stages:
         echo "Waiting 20s for ACR readiness propagation..."
         sleep 20
       displayName: 'Wait for ACR readiness'
+
+    # NEW STEP — Store ACR credentials in Azure Key Vault
+    - task: AzureCLI@2
+      displayName: 'Store ACR credentials in Key Vault'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "Fetching ACR credentials..."
+          ACR_USER=$(az acr credential show --name $(acrName) --query "username" -o tsv)
+          ACR_PASS=$(az acr credential show --name $(acrName) --query "passwords[0].value" -o tsv)
+
+          echo "Storing in Key Vault..."
+          az keyvault secret set --vault-name myproject-kv --name "acr-username" --value "$ACR_USER"
+          az keyvault secret set --vault-name myproject-kv --name "acr-password" --value "$ACR_PASS"
+          az keyvault secret set --vault-name myproject-kv --name "acr-login-server" --value "$(acrLoginServer)"
+
+          echo "✅ ACR credentials stored in Key Vault successfully."
 
 # --------------------------------
 # Stage 2: Build & push image

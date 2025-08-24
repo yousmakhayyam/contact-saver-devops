@@ -68,10 +68,22 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# --- Fetch admin credentials ---
+# ---  Fetch admin credentials ---
 data "azurerm_container_registry" "acr_creds" {
   name                = azurerm_container_registry.acr.name
   resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_user_assigned_identity" "acr_pull_identity" {
+  name                = "acr-pull-identity"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_role_assignment" "acr_pull_role" {
+  principal_id         = azurerm_user_assigned_identity.acr_pull_identity.principal_id
+  role_definition_name = "AcrPull"
+  scope                = azurerm_container_registry.acr.id
 }
 
 resource "azurerm_container_app_environment" "env" {
@@ -81,36 +93,33 @@ resource "azurerm_container_app_environment" "env" {
 }
 
 resource "azurerm_container_app" "app" {
-  name                         = "myproject-webapp"
+  name                     = "myproject-webapp"
   container_app_environment_id = azurerm_container_app_environment.env.id
-  resource_group_name          = azurerm_resource_group.rg.name
-  revision_mode                = "Single"
+  resource_group_name      = azurerm_resource_group.rg.name
+  revision_mode            = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.acr_pull_identity.id]
+  }
 
   ingress {
     external_enabled = true
     target_port      = 80
+
     traffic_weight {
       latest_revision = true
       percentage      = 100
     }
   }
 
-  # Define secrets here to be referenced in registry block
-  secret {
-    name  = "acr-username-secret"
-    value = azurerm_key_vault_secret.acr_username.value
-  }
-  secret {
-    name  = "acr-password-secret"
-    value = azurerm_key_vault_secret.acr_password.value
-  }
-
   template {
     container {
-      name   = "myapp"
-      image  = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
-      cpu    = 0.5
-      memory = "1.0Gi"
+      name    = "myapp"
+      image   = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
+      cpu     = 0.5
+      memory  = "1.0Gi"
+
       env {
         name  = "WEBSITES_PORT"
         value = "80"
@@ -118,11 +127,9 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # Reference secret by name in the registry block
   registry {
     server   = azurerm_container_registry.acr.login_server
-    username = "acr-username-secret"
-    password = "acr-password-secret"
+    identity = azurerm_user_assigned_identity.acr_pull_identity.id
   }
 
   tags = {
@@ -130,8 +137,7 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_key_vault_secret.acr_username, 
-    azurerm_key_vault_secret.acr_password
+    azurerm_role_assignment.acr_pull_role
   ]
 }
 
