@@ -95,16 +95,6 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # Define secrets here to be referenced in registry block
-  secret {
-    name  = "acr-username-secret"
-    value = data.azurerm_container_registry.acr_creds.admin_username
-  }
-  secret {
-    name  = "acr-password-secret"
-    value = data.azurerm_container_registry.acr_creds.admin_password
-  }
-
   template {
     container {
       name   = "myapp"
@@ -118,11 +108,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # Reference secrets by name in the registry block
+  # Correct way to reference ACR credentials from Key Vault
   registry {
     server               = azurerm_container_registry.acr.login_server
-    username_secret_name = "acr-username-secret"
-    password_secret_name = "acr-password-secret"
+    username_secret_name = azurerm_key_vault_secret.acr_username.name
+    password_secret_name = azurerm_key_vault_secret.acr_password.name
   }
 
   tags = {
