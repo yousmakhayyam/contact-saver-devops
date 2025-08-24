@@ -34,11 +34,6 @@ resource "azurerm_key_vault" "kv" {
   sku_name             = "standard"
 }
 
-variable "db_password" {
-  type        = string
-  description = "Database password secret from pipeline variable"
-}
-
 resource "azurerm_key_vault_access_policy" "terraform_executor_policy" {
   key_vault_id = azurerm_key_vault.kv.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
@@ -62,17 +57,6 @@ resource "azurerm_key_vault_access_policy" "app_policy" {
     "List",
     "Set",
     "Delete",
-  ]
-}
-
-resource "azurerm_key_vault_secret" "db_password" {
-  name         = "DbPassword"
-  value        = var.db_password
-  key_vault_id = azurerm_key_vault.kv.id
-
-  depends_on = [
-    azurerm_key_vault_access_policy.app_policy,
-    azurerm_key_vault_access_policy.terraform_executor_policy
   ]
 }
 
@@ -122,7 +106,6 @@ resource "azurerm_container_app" "app" {
   ingress {
     external_enabled = true
     target_port      = 80
-
     traffic_weight {
       latest_revision = true
       percentage      = 100
@@ -131,21 +114,23 @@ resource "azurerm_container_app" "app" {
 
   template {
     container {
-      name   = "myapp"
-      image  = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
-      cpu    = 0.5
+      name  = "myapp"
+      image = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
+      cpu   = 0.5
       memory = "1.0Gi"
-
       env {
         name  = "WEBSITES_PORT"
         value = "80"
       }
+      env {
+        name        = "ACR_USERNAME"
+        secret_ref  = azurerm_key_vault_secret.acr_username.name
+      }
+      env {
+        name        = "ACR_PASSWORD"
+        secret_ref  = azurerm_key_vault_secret.acr_password.name
+      }
     }
-  }
-
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = azurerm_user_assigned_identity.acr_pull_identity.id
   }
 
   tags = {
@@ -153,7 +138,9 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_role_assignment.acr_pull_role
+    azurerm_role_assignment.acr_pull_role,
+    azurerm_key_vault_secret.acr_username,
+    azurerm_key_vault_secret.acr_password
   ]
 }
 
