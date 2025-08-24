@@ -120,9 +120,9 @@ resource "azurerm_container_app" "app" {
 
   # Reference secrets by name in the registry block
   registry {
-    server               = azurerm_container_registry.acr.login_server
-    username_secret_name = "acr-username-secret"
-    password_secret_name = "acr-password-secret"
+    server   = azurerm_container_registry.acr.login_server
+    username = "acr-username-secret"
+    password = "acr-password-secret"
   }
 
   tags = {
@@ -130,7 +130,7 @@ resource "azurerm_container_app" "app" {
   }
 
   depends_on = [
-    azurerm_key_vault_secret.acr_username,
+    azurerm_key_vault_secret.acr_username, 
     azurerm_key_vault_secret.acr_password
   ]
 }
