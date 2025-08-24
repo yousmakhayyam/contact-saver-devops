@@ -68,7 +68,7 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
-# ---  Fetch admin credentials ---
+# --- Fetch admin credentials ---
 data "azurerm_container_registry" "acr_creds" {
   name                = azurerm_container_registry.acr.name
   resource_group_name = azurerm_resource_group.rg.name
@@ -95,6 +95,16 @@ resource "azurerm_container_app" "app" {
     }
   }
 
+  # **Correct placement and syntax for provider v3.75.0**
+  secret {
+    name  = "acr-username-secret"
+    value = azurerm_key_vault_secret.acr_username.value
+  }
+  secret {
+    name  = "acr-password-secret"
+    value = azurerm_key_vault_secret.acr_password.value
+  }
+
   template {
     container {
       name   = "myapp"
@@ -108,11 +118,11 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # Correct way to reference ACR credentials from Key Vault
+  # **Correct syntax for registry block in v3.75.0**
   registry {
-    server               = azurerm_container_registry.acr.login_server
-    username_secret_name = azurerm_key_vault_secret.acr_username.name
-    password_secret_name = azurerm_key_vault_secret.acr_password.name
+    server = azurerm_container_registry.acr.login_server
+    username = "acr-username-secret"
+    password = "acr-password-secret"
   }
 
   tags = {
