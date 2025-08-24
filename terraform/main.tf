@@ -113,24 +113,34 @@ resource "azurerm_container_app" "app" {
   }
 
   template {
+    # Step 1: Define secrets within the template block
+    secret {
+      name  = "acr-username"
+      value = azurerm_key_vault_secret.acr_username.value
+    }
+    secret {
+      name  = "acr-password"
+      value = azurerm_key_vault_secret.acr_password.value
+    }
+
+    # Step 2: Use the secrets in the registry block
     container {
-      name  = "myapp"
-      image = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
-      cpu   = 0.5
+      name   = "myapp"
+      image  = "${azurerm_container_registry.acr.login_server}/moodly:${var.image_tag}"
+      cpu    = 0.5
       memory = "1.0Gi"
       env {
         name  = "WEBSITES_PORT"
         value = "80"
       }
-      env {
-        name        = "ACR_USERNAME"
-        secret_ref  = azurerm_key_vault_secret.acr_username.name
-      }
-      env {
-        name        = "ACR_PASSWORD"
-        secret_ref  = azurerm_key_vault_secret.acr_password.name
-      }
     }
+  }
+
+  # Step 3: Pass the secrets to the registry block
+  registry {
+    server   = azurerm_container_registry.acr.login_server
+    username = azurerm_key_vault_secret.acr_username.value
+    password = azurerm_key_vault_secret.acr_password.value
   }
 
   tags = {
