@@ -118,7 +118,7 @@ resource "azurerm_container_app" "app" {
     }
   }
 
-  # Reference secrets by name in the registry block
+  # Reference secret by name in the registry block
   registry {
     server   = azurerm_container_registry.acr.login_server
     username = "acr-username-secret"
