@@ -29,7 +29,7 @@ variable "image_tag" {
 
 module "rg_acr" {
   source   = "./modules/rg_acr"
-  rg_name  = "yousma-khayam-rg"
+  rg_name  = "yousma-khayam1-rg"
   acr_name = "myprojectacr1234"
   location = "East US"
 }
