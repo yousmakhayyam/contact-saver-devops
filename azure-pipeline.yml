@@ -188,14 +188,6 @@ stages:
         backendAzureRmContainerName: tfstate
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
-        
-    - task: TerraformTaskV4@4
-      displayName: 'Terraform Refresh'
-      inputs:
-        provider: 'azurerm'
-        command: 'refresh'
-        workingDirectory: 'terraform'
-        environmentServiceNameAzureRM: $(azureSubscription)
 
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply - All Remaining Infra + App'
