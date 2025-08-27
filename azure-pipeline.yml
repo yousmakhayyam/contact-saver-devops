@@ -141,9 +141,12 @@ stages:
           az acr login --name "$ACR_NAME"
 
           IMAGE="$(acrLoginServer)/$(imageName):$(Build.BuildId)"
-          echo "Building $IMAGE"
-          docker build -t "$IMAGE" backend
+          LATEST_IMAGE="$(acrLoginServer)/$(imageName):latest"
+          echo "Building images..."
+          docker build -t "$IMAGE" -t "$LATEST_IMAGE" backend
+          echo "Pushing images to ACR..."
           docker push "$IMAGE"
+          docker push "$LATEST_IMAGE"
           echo "##vso[task.setvariable variable=IMAGE_URI]$IMAGE"
 
     - task: AzureCLI@2
@@ -163,7 +166,7 @@ stages:
   displayName: 'Terraform Apply - Infra & App'
   dependsOn: Build_Push
   variables:
-    image_tag: $(Build.BuildId)
+    image_tag: latest
 
   jobs:
   - job: TF_App
