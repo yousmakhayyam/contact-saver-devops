@@ -17,7 +17,7 @@ variables:
 stages:
 # -------------------------------
 # Stage 1: Create RG + ACR (safe)
-# --------------------------------
+# -------------------------------
 - stage: Create_ACR
   displayName: 'Terraform Apply - Create RG + ACR (safe)'
   jobs:
