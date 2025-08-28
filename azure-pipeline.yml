@@ -16,10 +16,10 @@ variables:
 
 stages:
 # -------------------------------
-# Stage 1: Create RG + ACR (safe)
+# Stage 1: Create RG + ACR
 # -------------------------------
 - stage: Create_ACR
-  displayName: 'Terraform Apply - Create RG + ACR (safe)'
+  displayName: 'Terraform Apply - Create RG + ACR'
   jobs:
   - job: TF_ACR
     pool:
@@ -44,60 +44,6 @@ stages:
         backendAzureRmKey: terraform.tfstate
         environmentServiceNameAzureRM: $(azureSubscription)
 
-    - task: AzureCLI@2
-      displayName: 'Ensure no stale Terraform lock blob (try delete)'
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          echo "Attempting to delete stale terraform lock blob (if present)..."
-          az storage blob delete \
-            --account-name yousmastorage \
-            --container-name tfstate \
-            --name "terraform.tfstate.lock.info" \
-            --auth-mode login \
-            --only-show-errors || true
-          echo "Done (delete attempt finished)."
-
-    - task: AzureCLI@2
-      displayName: 'Ensure RG state is safe (inspect/import existing RG)'
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          cd terraform
-          DESIRED_RG="yousma-khayam-rg"
-          STATE_RESOURCE="azurerm_resource_group.rg"
-
-          echo "Checking Terraform state for ${STATE_RESOURCE}..."
-          if terraform state list 2>/dev/null | grep -q "^${STATE_RESOURCE}$"; then
-            echo "Found ${STATE_RESOURCE} in state. Inspecting existing name..."
-            current_name=$(terraform state show ${STATE_RESOURCE} 2>/dev/null | sed -n 's/^ *name *= *"\(.*\)".*/\1/p' || echo "")
-            echo "Current name in state: '${current_name}'"
-            if [ "${current_name}" != "${DESIRED_RG}" ]; then
-              echo "State entry has different name -> removing state entry to avoid replacement"
-              terraform state rm ${STATE_RESOURCE} || true
-
-              echo "Checking if resource group '${DESIRED_RG}' already exists in subscription..."
-              if az group show -n "${DESIRED_RG}" >/dev/null 2>&1; then
-                echo "Resource group ${DESIRED_RG} exists — importing into Terraform state..."
-                SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-                terraform import ${STATE_RESOURCE} /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${DESIRED_RG}
-                echo "Import successful."
-              else
-                echo "Resource group ${DESIRED_RG} does not exist — Terraform will create it."
-              fi
-            else
-              echo "State entry matches desired name. No action needed."
-            fi
-          else
-            echo "${STATE_RESOURCE} not present in state — safe to apply to create it."
-          fi
-
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply - Only RG + ACR'
       inputs:
@@ -109,11 +55,6 @@ stages:
           -target=azurerm_resource_group.rg
           -target=azurerm_container_registry.acr
           -auto-approve
-
-    - script: |
-        echo "Waiting 20s for ACR readiness propagation..."
-        sleep 20
-      displayName: 'Wait for ACR readiness'
 
 # --------------------------------
 # Stage 2: Build & push image
